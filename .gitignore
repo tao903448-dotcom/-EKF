@@ -1,0 +1,25 @@
+# 构建产物
+build/
+lib/
+build_arm/
+lib_arm/
+
+# 目标文件 / 静态库 / 栈用量报告
+*.o
+*.a
+*.su
+
+# 可执行文件
+ekf_demo
+test_matrix
+test_ekf
+test_benchmark
+test_benchmark_fixed
+*.exe
+
+# 依赖文件
+.depend
+
+# 编辑器 / 系统
+*.swp
+.DS_Store
