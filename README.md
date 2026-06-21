@@ -9,7 +9,7 @@
 [![CI](https://github.com/tao903448-dotcom/-EKF/actions/workflows/ci.yml/badge.svg)](https://github.com/tao903448-dotcom/-EKF/actions/workflows/ci.yml)
 ![language](https://img.shields.io/badge/language-C99-blue)
 ![platform](https://img.shields.io/badge/platform-Linux%20|%20macOS%20|%20Windows%20|%20ARM-lightgrey)
-![tests](https://img.shields.io/badge/tests-63%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-65%20passing-brightgreen)
 ![sanitizers](https://img.shields.io/badge/ASan%2FUBSan-clean-success)
 ![alloc](https://img.shields.io/badge/heap-zero%20malloc-orange)
 
@@ -68,6 +68,10 @@ flowchart LR
 | **OUTLIER**（电机振动野值） | 1.75° · NIS 73 ❌ | 1.75° | 0.44° **↓75%** | **0.42° ↓76%** · NIS 4 ✅ |
 | **MANEUVER**（机动比力失配） | 25.7° | 25.7° | 18.6° ↓28% | **15.5° ↓39%** |
 
+> **加速度自适应门控**（按比力幅值偏离 g 降权加速度）进一步压低失配残差：
+> MANEUVER 自适应 15.5°→**12.5°**（叠加后相对标准 ↓51%），OUTLIER 标准 1.75°→0.81°，
+> CLEAN 不劣化。详见报告 §5.1。
+>
 > 鲁棒/自适应不仅降低误差，更在野值/失配下**恢复滤波器一致性**（NIS 73→4）。
 > `标准 ≡ Joseph`（对最优增益数学等价）佐证实现正确；MANEUVER 残差较大是
 > 加速度计在持续线加速度下丢失重力信息的**物理上限**，报告中如实说明。
@@ -161,7 +165,7 @@ for (int k = 0; k < N; k++) {
 |---|:--:|---|
 | `test_matrix` | 11 / 11 | 别名安全、14×14 求逆越界回归、行列式/分解 |
 | `test_ekf` | 41 / 41 | 协方差不坍缩、Standard≡Joseph、抗野值、预测不混叠、枚举守卫 |
-| `test_attitude` | 11 / 11 | 四元数运算、姿态精度/一致性、鲁棒性回归 |
+| `test_attitude` | 13 / 13 | 四元数运算、姿态精度/一致性、鲁棒性、加速度门控回归 |
 
 GitHub Actions 三作业：**x86 构建+测试** · **ASan/UBSan** · **ARM(NEON) 交叉编译**。
 

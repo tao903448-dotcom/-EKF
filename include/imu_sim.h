@@ -56,6 +56,7 @@ typedef struct {
 typedef struct {
     float gyro[3];            /* 陀螺测量 (rad/s) */
     float accel_dir[3];       /* 归一化重力方向观测 (body) */
+    float accel_mag;          /* 加速度计比力幅值 (m/s^2，归一化前)；静止≈g，机动时偏离 */
     float mag_dir[3];         /* 归一化磁方向观测 (body) */
     float q_true[4];          /* 真值姿态四元数(用于评估) */
     float bias_true[3];       /* 真值零偏(用于评估) */
@@ -173,6 +174,7 @@ static inline void imu_sim_step(ImuSim *s, const ImuSimConfig *c, ImuSample *out
     float fn = sqrtf(f_b[0]*f_b[0] + f_b[1]*f_b[1] + f_b[2]*f_b[2]);
     if (fn < 1e-6f) fn = 1e-6f;
     out->accel_dir[0] = f_b[0]/fn; out->accel_dir[1] = f_b[1]/fn; out->accel_dir[2] = f_b[2]/fn;
+    out->accel_mag = fn;   /* 比力幅值：静止≈g，机动(含线加速度/野值)时偏离 */
 
     /* 磁方向(world→body) + 噪声并归一化（参考方向须与 attitude 模型一致：指北[1,0,0]） */
     const float m_w_ref[3] = { 1.0f, 0.0f, 0.0f };

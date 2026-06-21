@@ -58,13 +58,13 @@ static void test_quaternion(void) {
 }
 
 /* 跑一次姿态滤波，返回稳态姿态 RMSE(deg) 与平均 NIS */
-static void run_filter(ImuScenario scenario, EKF_UpdateMethod method, uint32_t seed,
-                       double *rmse_deg, double *avg_nis) {
+static void run_filter_g(ImuScenario scenario, EKF_UpdateMethod method, int gate,
+                         uint32_t seed, double *rmse_deg, double *avg_nis) {
     ImuSimConfig sc = imu_sim_default(scenario);
     ImuSim sim; imu_sim_init(&sim, seed);
     EKF_Config cfg; attitude_config_init(&cfg);
-    Matrix Q, R;
-    matrix_zeros(&Q, 7, 7); matrix_zeros(&R, 6, 6);
+    Matrix Q, R, Rg;
+    matrix_zeros(&Q, 7, 7); matrix_zeros(&R, 6, 6); matrix_zeros(&Rg, 6, 6);
     for (int i = 0; i < 4; i++) Q.data[i*7+i] = 1e-6f;
     for (int i = 4; i < 7; i++) Q.data[i*7+i] = 1e-9f;
     for (int i = 0; i < 6; i++) R.data[i*6+i] = 4e-4f;
@@ -85,6 +85,13 @@ static void run_filter(ImuScenario scenario, EKF_UpdateMethod method, uint32_t s
         for (int i = 0; i < 3; i++) u.data[i] = s.gyro[i];
         ekf_predict(&st, &cfg, &u, sc.dt);
         for (int i = 0; i < 3; i++) { z.data[i] = s.accel_dir[i]; z.data[3+i] = s.mag_dir[i]; }
+        if (gate) {
+            float dev = fabsf(s.accel_mag / IMU_G - 1.0f);
+            float gs = 1.0f + 200.0f * dev * dev; if (gs > 200.0f) gs = 200.0f;
+            for (int i = 0; i < 3; i++) Rg.data[i*6+i] = 4e-4f * gs;
+            for (int i = 3; i < 6; i++) Rg.data[i*6+i] = 4e-4f;
+            ekf_set_measurement_noise(&cfg, &Rg);
+        }
         ekf_update(&st, &cfg, &z);
         float qe[4] = {st.x.data[0], st.x.data[1], st.x.data[2], st.x.data[3]};
         float ang = quat_angle_between(qe, s.q_true) * DEG;
@@ -95,6 +102,12 @@ static void run_filter(ImuScenario scenario, EKF_UpdateMethod method, uint32_t s
     }
     *rmse_deg = sqrt(sse / cnt);
     *avg_nis  = nis_sum / cnt;
+}
+
+/* 无门控的便捷封装（保持既有测试调用不变） */
+static void run_filter(ImuScenario scenario, EKF_UpdateMethod method, uint32_t seed,
+                       double *rmse_deg, double *avg_nis) {
+    run_filter_g(scenario, method, 0, seed, rmse_deg, avg_nis);
 }
 
 static void test_attitude_clean(void) {
@@ -128,12 +141,28 @@ static void test_attitude_robust(void) {
     CHECK(r_ada < r_std, "MANEUVER 下自适应较标准更优");
 }
 
+static void test_attitude_accel_gating(void) {
+    printf("\nTest: 姿态 EKF —— 加速度自适应门控\n");
+    double r_no, r_gate, r_clean_no, r_clean_gate, n;
+    /* MANEUVER：门控应进一步降低误差 */
+    run_filter_g(SIM_MANEUVER, EKF_UPDATE_ADAPTIVE, 0, 42u, &r_no, &n);
+    run_filter_g(SIM_MANEUVER, EKF_UPDATE_ADAPTIVE, 1, 42u, &r_gate, &n);
+    printf("  MANEUVER 自适应: 无门控=%.3f  +门控=%.3f deg\n", r_no, r_gate);
+    CHECK(r_gate < r_no, "MANEUVER 下门控进一步降低误差");
+    /* CLEAN：门控不应明显劣化（比力≈g，门控≈1） */
+    run_filter_g(SIM_CLEAN, EKF_UPDATE_ADAPTIVE, 0, 42u, &r_clean_no, &n);
+    run_filter_g(SIM_CLEAN, EKF_UPDATE_ADAPTIVE, 1, 42u, &r_clean_gate, &n);
+    printf("  CLEAN 自适应: 无门控=%.3f  +门控=%.3f deg\n", r_clean_no, r_clean_gate);
+    CHECK(r_clean_gate < r_clean_no * 1.1 + 1e-6, "CLEAN 下门控不明显劣化(<+10%)");
+}
+
 int main(void) {
     printf("========== 姿态 EKF / 四元数 测试 ==========\n");
     test_quaternion();
     test_attitude_clean();
     test_attitude_standard_equals_joseph();
     test_attitude_robust();
+    test_attitude_accel_gating();
     printf("\n========== 结果 ==========\n通过: %d\n失败: %d\n总计: %d\n",
            passed, failed, passed + failed);
     return failed > 0 ? 1 : 0;
