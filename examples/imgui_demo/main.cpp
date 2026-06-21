@@ -1,11 +1,16 @@
 /**
  * @file main.cpp
- * @brief Adaptive EKF System - Full Feature Version
+ * @brief 自适应 EKF 系统 - 图形仪表盘（Windows + DX11 + ImGui）
  *
- * Real EKF backend + Modern ImGui GUI
+ * 真实 EKF 后端（调用本项目 ekf/matrix 库）+ ImGui 可视化。轨迹、估计、新息
+ * 序列与四算法 RMSE 对比柱均来自真实滤波结果；仪表盘上的少量装饰性指示
+ * （运行模式/频率等）为示意标注，不作为评测依据。
  *
- * @author Software Cup Team
- * @date 2026-06-17
+ * 权威、可复现的定量评测请以命令行 `attitude_demo` / `ekf_demo` 为准
+ * （多场景蒙特卡洛 + 一致性指标，跨平台、纳入 CI）。
+ *
+ * @author 软件杯团队
+ * @date 2026-06-21
  */
 
 #include "imgui.h"
@@ -819,9 +824,9 @@ void DrawTelemetry() {
         float ev = g_sim.est_vals[idx], inn = ov - ev;
 
         float y0 = cy + 32;
-        Card(y0, "真实位置 (GT)", "LAT: 39.9042, LNG: 116.4074", tv, T::Blue, "m");
-        Card(y0 + (card_h+card_gap), "观测值 (OBS)", "NOISE: Gaussian(0, 0.5)", ov, T::Err, "m");
-        Card(y0 + (card_h+card_gap)*2, "估计值 (EST)", "COV: 0.124", ev, T::Sec, "m");
+        Card(y0, "真实位置 (GT)", "仿真真值 (ground truth)", tv, T::Blue, "m");
+        Card(y0 + (card_h+card_gap), "观测值 (OBS)", "含噪声与野值的观测", ov, T::Err, "m");
+        Card(y0 + (card_h+card_gap)*2, "估计值 (EST)", "EKF 估计值", ev, T::Sec, "m");
         ImVec4 ic = fabsf(inn) > 0.5f ? T::Err : T::TxtV;
         Card(y0 + (card_h+card_gap)*3, "新息 (Innovation)", "THRESHOLD: < 0.5", inn, ic, "v");
 
@@ -845,9 +850,9 @@ void DrawTelemetry() {
     dl->AddText({rx+1, sp.y+pad+1}, IM_COL32(0x10, 0x1C, 0x2D, 60), "新息监控 (Innovation Monitor)");
     dl->AddText({rx, sp.y + pad}, IM_COL32(0x10, 0x1C, 0x2D, 255), "新息监控 (Innovation Monitor)");
     dl->AddText({rx + rw - 240, sp.y + pad}, IM_COL32(0x99, 0x99, 0x99, 255), "均值: ");
-    dl->AddText({rx + rw - 190, sp.y + pad}, IM_COL32(0x00, 0x3D, 0x9B, 255), "0.02");
+    dl->AddText({rx + rw - 190, sp.y + pad}, IM_COL32(0x00, 0x3D, 0x9B, 255), "—");
     dl->AddText({rx + rw - 140, sp.y + pad}, IM_COL32(0x99, 0x99, 0x99, 255), "方差: ");
-    dl->AddText({rx + rw - 80, sp.y + pad}, IM_COL32(0x00, 0x3D, 0x9B, 255), "0.15");
+    dl->AddText({rx + rw - 80, sp.y + pad}, IM_COL32(0x00, 0x3D, 0x9B, 255), "—");
 
     // 图表区域
     float gx = rx;
@@ -937,7 +942,7 @@ void DrawTelemetry() {
     float bch = 60;
 
     struct SC { const char* ic; const char* lb; const char* vl; ImVec4 bg; };
-    SC sc[] = { {"S","SYSTEM STATUS","Nominal",T::Pri}, {"F","LOOP FREQUENCY","50.2 Hz",T::Sec}, {"G","GNSS LOCK","Precision Fix",T::Ter} };
+    SC sc[] = { {"S","SYSTEM STATUS","Nominal",T::Pri}, {"F","LOOP FREQUENCY","200 Hz",T::Sec}, {"G","运行模式","仿真",T::Ter} };
 
     for (int i = 0; i < 3; i++) {
         float x = sp.x + pad + i * (bcw + 12);
@@ -1290,10 +1295,10 @@ void DrawAnalysis() {
     float card_gap = 12;
 
     struct AlgoInfo { const char* name; const char* desc; float rmse; bool optimal; float diff; const char* diff_label; };
-    float std_rmse = g_rmse_standard > 0 ? g_rmse_standard : 42.715f;
-    float stu_rmse = g_rmse_student_t > 0 ? g_rmse_student_t : 24.116f;
-    float ada_rmse = g_rmse_adaptive > 0 ? g_rmse_adaptive : 16.743f;
-    float jos_rmse = g_rmse_joseph > 0 ? g_rmse_joseph : 46.637f;
+    float std_rmse = g_rmse_standard > 0 ? g_rmse_standard : 0.0f;
+    float stu_rmse = g_rmse_student_t > 0 ? g_rmse_student_t : 0.0f;
+    float ada_rmse = g_rmse_adaptive > 0 ? g_rmse_adaptive : 0.0f;
+    float jos_rmse = g_rmse_joseph > 0 ? g_rmse_joseph : 0.0f;
 
     // 动态判断最优算法
     float rmse_arr[4] = {std_rmse, stu_rmse, ada_rmse, jos_rmse};
@@ -1371,7 +1376,7 @@ void DrawAnalysis() {
         {"[OK]", "模型失配检测", "统计假设检验，早期漂移识别", true},
         {"[OK]", "Student-t鲁棒更新", "抗野值干扰，适合模型失配", true},
         {"[OK]", "自适应噪声估计", "动态窗口调整噪声协方差", true},
-        {"[--]", "高计算负载", "NEON向量单元利用率78%", false},
+        {"[--]", "高计算负载", "NEON 向量加速 (示意)", false},
     };
 
     for (int i = 0; i < 5; i++) {

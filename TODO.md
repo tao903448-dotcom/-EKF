@@ -10,13 +10,13 @@
 
 ## P0 · 可信度 / 正确性（评委最敏感）
 
-- [ ] `[crit|M]` **GUI 伪造遥测充当真实数据**（`examples/imgui_demo/main.cpp`）
+- [~] `[crit|M]` **GUI 伪造遥测**：已把装饰性假值(经纬度/COV/GNSS/频率/利用率/新息均值方差)改为示意标注或置零(编译安全字符串改)；接真实后端量需 Windows 端编译验证（`examples/imgui_demo/main.cpp`）
   硬编码 `COV:0.124`/`50.2Hz`/`GNSS Precision Fix`/经纬度/新息均值方差/分析页
   fallback RMSE 与"硬件利用率 78%"等，均为假值却以真实示之 → 改为显示后端真实
   `P` 对角、NIS、增益、零偏；无法真实化者明确标注"示意"。**评委可信度风险。**
 - [ ] `[crit|M]` **GUI 无视后端真实协方差/新息**（同上）后端已有真实量却不用 → 接真值。
-- [ ] `[high|S]` **GUI 均匀噪声误标为高斯**（同上）查表均匀分布注释成 Gaussian → 改真高斯或正名。
-- [ ] `[high|M]` **GUI 分析页硬编码 fallback RMSE / 假硬件利用率**（同上）→ 全部接真值或删。
+- [x] `[high|S]` **GUI 噪声标注**：已去除"Gaussian(0,0.5)"误标（同上）查表均匀分布注释成 Gaussian → 改真高斯或正名。
+- [x] `[high|M]` **GUI fallback RMSE 置零、利用率改示意**（未计算时显示 0 而非假数）（同上）→ 全部接真值或删。
 - [ ] `[low|S]` **GUI 死控件**（同上）无功能按钮误导用户 → 接线或移除。
 - [x] `[high|S]` **matrix_add/sub/scale 对 MatrixView(stride≠cols) 静默算错**（`src/matrix.c`）
   逐元素用扁平 `data[i]`，视图非连续时读错；其余 mul/transpose/copy 正确。→ 改 MATRIX_INDEX 行列索引。**真实潜伏 bug（锐评新发现）。**
