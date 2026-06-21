@@ -97,9 +97,10 @@ int main(int argc, char **argv) {
     for (int i=0;i<n1;i++) for (int j=0;j<m1;j++)
         if (res1[i*m1+j]<best1){best1=res1[i*m1+j];bi=i;bj=j;}
     printf("\n[OUTLIER / Student-t] 扫 (nu,delta), RMSE(deg):\n     ");
-    for (int j=0;j<m1;j++) printf("  d=%.2f", DELTAS[j]); printf("\n");
+    for (int j=0;j<m1;j++) { printf("  d=%.2f", DELTAS[j]); } printf("\n");
     for (int i=0;i<n1;i++){ printf("nu=%4.1f", NUS[i]);
-        for (int j=0;j<m1;j++) printf("  %.3f", res1[i*m1+j]); printf("\n"); }
+        for (int j=0;j<m1;j++) { printf("  %.3f", res1[i*m1+j]); }
+        printf("\n"); }
     printf(">>> 最优: nu=%.1f delta=%.2f -> RMSE=%.3f (当前默认 nu=5,delta=1)\n",
            NUS[bi], DELTAS[bj], best1);
     free(res1);
@@ -118,9 +119,10 @@ int main(int argc, char **argv) {
     for (int i=0;i<n2;i++) for (int j=0;j<m2;j++)
         if (res2[i*m2+j]<best2){best2=res2[i*m2+j];ci=i;cj=j;}
     printf("\n[MANEUVER / 自适应+门控] 扫 (adaptF,gateK), RMSE(deg):\n      ");
-    for (int j=0;j<m2;j++) printf("  K=%4.0f", GK[j]); printf("\n");
+    for (int j=0;j<m2;j++) { printf("  K=%4.0f", GK[j]); } printf("\n");
     for (int i=0;i<n2;i++){ printf("aF=%4.1f", AF[i]);
-        for (int j=0;j<m2;j++) printf("  %.2f", res2[i*m2+j]); printf("\n"); }
+        for (int j=0;j<m2;j++) { printf("  %.2f", res2[i*m2+j]); }
+        printf("\n"); }
     printf(">>> 最优: adaptF=%.1f gateK=%.0f -> RMSE=%.2f (当前默认 adaptF=1,gateK=200)\n",
            AF[ci], GK[cj], best2);
     free(res2);
