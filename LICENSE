@@ -1,0 +1,21 @@
+面向模型失配的自适应 EKF 系统 —— 许可声明
+Adaptive EKF System — License Notice
+
+版权所有 (c) 2026 软件杯团队 (Software Cup Team)
+
+本项目为第十五届中国软件杯参赛作品，按"学习与竞赛用途"开放：
+
+允许 (Permitted):
+  - 出于学习、教学、学术研究与竞赛评审目的查阅、编译、运行本代码；
+  - 在保留本声明与作者署名的前提下用于上述目的的修改与分发。
+
+限制 (Restrictions):
+  - 未经作者书面许可，不得将本作品整体或实质部分用于商业用途；
+  - 不得移除或篡改本声明、版权与署名信息。
+
+免责 (Disclaimer):
+  本软件按"现状"提供，不附带任何明示或暗示的担保；作者不对因使用本软件
+  造成的任何损失承担责任。
+
+如需商业授权或其他用途，请联系作者团队。
+For uses beyond the above (e.g. commercial), please contact the authors.
