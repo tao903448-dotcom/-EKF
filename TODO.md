@@ -56,7 +56,7 @@
 - [x] `[high|S]` **CI 未开 -Werror**（`.github/workflows/ci.yml`,`Makefile`）告警可累积。
 - [ ] `[high|M]` 🖥️ **ARM CI 只交叉编译不运行**（CI）→ QEMU 运行。
 - [ ] `[high|M]` 🖥️ **CI 无 valgrind**（CI）→ memcheck 全测试+demo。
-- [ ] `[high|M]` **EKF 未对独立双精度参考滤波验证**（`tests/`）→ 实现参考 KF 断言一致。
+- [x] `[high|M]` **EKF 对独立双精度参考滤波验证**（`tests/`）已实现，max|Δ|=6.5e-6。
 - [ ] `[high|M]` **benchmark 无判定准则且用 clock()**（`tests/`）→ 加阈值/单调时钟。
 - [ ] `[high|M]` **GUI 完全无测试**（`tests/`）已知映射 bug 未回归锁定 → 抽可测逻辑。
 - [ ] `[high|M]` **矩阵运算无 NaN/Inf 边界测试**（`tests/`）。

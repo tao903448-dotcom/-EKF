@@ -536,6 +536,78 @@ static void test_ekf_enum_order(void) {
     TEST_ASSERT(EKF_UPDATE_ADAPTIVE  == 3, "ADAPTIVE==3");
 }
 
+/**
+ * @brief 对独立双精度参考卡尔曼滤波验证（回归：杜绝"仅自证"）
+ *
+ * 用一个完全独立、纯 double 实现的 2 状态线性 KF（匀速模型）作为参照，
+ * 与本框架的 float EKF(标准更新) 跑同一观测序列，断言状态估计逐步吻合。
+ * 线性模型下 EKF 退化为 KF，两者应在浮点精度内一致——这验证了整条
+ * predict/update/增益/协方差 链路的数值正确性，而非自我比较。
+ */
+static void test_ekf_vs_reference(void) {
+    printf("\nTest: EKF vs independent double-precision reference KF\n");
+
+    const float dt = 1.0f, q = 0.05f, r = 0.5f;
+
+    /* --- 本框架 float EKF（标准更新，匀速模型） --- */
+    EKF_Config cfg; ekf_config_init(&cfg, 2, 1);
+    ekf_set_functions(&cfg, test_state_func, test_meas_func,
+                      test_state_jacob, test_meas_jacob);
+    Matrix Q, R; matrix_init(&Q, 2, 2); matrix_init(&R, 1, 1);
+    matrix_set(&Q, 0, 0, q); matrix_set(&Q, 1, 1, q); matrix_set(&R, 0, 0, r);
+    ekf_set_process_noise(&cfg, &Q); ekf_set_measurement_noise(&cfg, &R);
+    Matrix x0, P0; matrix_init(&x0, 2, 1); matrix_init(&P0, 2, 2);
+    matrix_set(&x0, 0, 0, 0); matrix_set(&x0, 1, 0, 1);
+    matrix_set(&P0, 0, 0, 1); matrix_set(&P0, 1, 1, 1);
+    EKF_State ekf; ekf_state_init(&ekf, &cfg, &x0, &P0);
+    Matrix u, z; matrix_init(&u, 1, 1); matrix_init(&z, 1, 1);
+
+    /* --- 独立 double 参考 KF：x=[p,v], F=[[1,dt],[0,1]], H=[1,0] --- */
+    double rx[2] = {0, 1};
+    double rP[2][2] = {{1, 0}, {0, 1}};
+    double Fm[2][2] = {{1, dt}, {0, 1}};
+
+    unsigned rng = 555u; double maxd = 0.0;
+    for (int k = 0; k < 100; k++) {
+        double truth = (double)k;
+        rng = rng * 1103515245u + 12345u;
+        double obs = truth + ((double)((rng >> 16) & 0x7fff) / 32767.0 - 0.5);
+
+        /* float EKF 一步 */
+        ekf_predict(&ekf, &cfg, &u, dt);
+        matrix_set(&z, 0, 0, (float)obs);
+        ekf_update(&ekf, &cfg, &z);
+
+        /* 参考 KF predict: x=Fx; P=FPF'+Q */
+        double nx0 = Fm[0][0]*rx[0] + Fm[0][1]*rx[1];
+        double nx1 = Fm[1][0]*rx[0] + Fm[1][1]*rx[1];
+        rx[0] = nx0; rx[1] = nx1;
+        double FP[2][2];
+        for (int i=0;i<2;i++) for (int j=0;j<2;j++)
+            FP[i][j] = Fm[i][0]*rP[0][j] + Fm[i][1]*rP[1][j];
+        double nP[2][2];
+        for (int i=0;i<2;i++) for (int j=0;j<2;j++)
+            nP[i][j] = FP[i][0]*Fm[j][0] + FP[i][1]*Fm[j][1];
+        nP[0][0]+=q; nP[1][1]+=q;
+        for (int i=0;i<2;i++) for (int j=0;j<2;j++) rP[i][j]=nP[i][j];
+        /* 参考 KF update: H=[1,0] */
+        double S = rP[0][0] + r;
+        double K0 = rP[0][0]/S, K1 = rP[1][0]/S;
+        double inn = obs - rx[0];
+        rx[0] += K0*inn; rx[1] += K1*inn;
+        double P00=rP[0][0],P01=rP[0][1],P10=rP[1][0],P11=rP[1][1];
+        rP[0][0]=(1-K0)*P00; rP[0][1]=(1-K0)*P01;
+        rP[1][0]=P10-K1*P00; rP[1][1]=P11-K1*P01;
+
+        double dp = fabs((double)matrix_get(&ekf.x,0,0) - rx[0]);
+        double dv = fabs((double)matrix_get(&ekf.x,1,0) - rx[1]);
+        if (dp > maxd) maxd = dp;
+        if (dv > maxd) maxd = dv;
+    }
+    printf("  (max |EKF - reference| over 100 steps = %.2e)\n", maxd);
+    TEST_ASSERT(maxd < 1e-3, "float EKF 与双精度参考 KF 逐步一致 (<1e-3)");
+}
+
 /* ========== 主函数 ========== */
 
 int main(void) {
@@ -560,6 +632,7 @@ int main(void) {
     test_ekf_robust_beats_standard();
     test_ekf_predict_no_alias();
     test_ekf_enum_order();
+    test_ekf_vs_reference();
 
     /* 打印结果 */
     printf("\n══════════════════════════════════════════════════════════\n");
