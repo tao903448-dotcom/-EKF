@@ -35,8 +35,7 @@
 - [ ] `[high|L]` **平方根/UD 协方差分解滤波**（`src/`）数值更稳，长跑不失正定。
 - [ ] `[high|L]` **自适应仅调 R，未在线估计 Q**（`src/ekf.c`）过程失配应调 Q → 加基于 NIS 的 Q 自适应。
 - [x] `[high|M]` **核心 NIS 卡方门控**（`src/ekf.c`）已加 `ekf_set_nis_gate`；OUTLIER 标准EKF 1.94°→0.40°。
-- [ ] `[high|L]` **加性 7D 四元数协方差过参数化（vs MEKF）**（`src/attitude.c`）秩/一致性
-  不严谨 → 实现 6 维误差状态乘性 EKF(MEKF) 作对照基线。
+- [x] `[high|L]` **MEKF 乘性误差状态对照已实现**（`src/mekf.c`）6 维误差协方差、NEES 一致性；与加性 EKF 点估计等价。
 - [ ] `[high|M]` **数值雅可比穿过函数内归一化，扭曲线性化**（`src/attitude.c`）→ 归一化移出
   或提供解析雅可比并交叉校验。
 - [ ] `[medi|M]` **API 无法逐量测设置 R**（`src/ekf.c`）R 锁定在 config（门控已临时绕过）→ 提供逐步 R 接口。
