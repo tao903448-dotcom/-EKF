@@ -608,6 +608,43 @@ static void test_ekf_vs_reference(void) {
     TEST_ASSERT(maxd < 1e-3, "float EKF 与双精度参考 KF 逐步一致 (<1e-3)");
 }
 
+/**
+ * @brief 错误路径：未初始化 / 空指针 / 缺函数指针 / 维度不符
+ */
+static void test_ekf_error_paths(void) {
+    printf("\nTest: EKF error paths\n");
+    EKF_Config config;
+    TEST_ASSERT(!ekf_config_init(NULL, 2, 1), "config_init NULL 返回 false");
+    TEST_ASSERT(!ekf_config_init(&config, 0, 1), "state_dim=0 返回 false");
+    TEST_ASSERT(!ekf_config_init(&config, 99, 1), "state_dim 超限返回 false");
+
+    ekf_config_init(&config, 2, 1);
+    Matrix u, z; matrix_init(&u, 1, 1); matrix_init(&z, 1, 1);
+
+    /* 未初始化状态 + 未设函数 */
+    EKF_State ekf; ekf.initialized = false;
+    TEST_ASSERT(!ekf_predict(&ekf, &config, &u, 1.0f), "未初始化 predict 返回 false");
+    TEST_ASSERT(!ekf_update(&ekf, &config, &z), "未初始化 update 返回 false");
+
+    /* 已初始化但未设函数指针 */
+    Matrix x0, P0; matrix_init(&x0, 2, 1); matrix_init(&P0, 2, 2);
+    matrix_set(&P0,0,0,1); matrix_set(&P0,1,1,1);
+    ekf_state_init(&ekf, &config, &x0, &P0);
+    TEST_ASSERT(!ekf_predict(&ekf, &config, &u, 1.0f), "缺状态函数 predict 返回 false");
+
+    /* 空指针 */
+    TEST_ASSERT(!ekf_predict(NULL, &config, &u, 1.0f), "predict NULL state 返回 false");
+    TEST_ASSERT(!ekf_update(&ekf, &config, NULL), "update NULL z 返回 false");
+
+    /* 非有限观测被拒绝（NaN 守卫） */
+    ekf_set_functions(&config, test_state_func, test_meas_func, test_state_jacob, test_meas_jacob);
+    Matrix Q, R; matrix_init(&Q,2,2); matrix_init(&R,1,1); matrix_set(&R,0,0,1);
+    ekf_set_process_noise(&config,&Q); ekf_set_measurement_noise(&config,&R);
+    ekf_state_init(&ekf, &config, &x0, &P0);
+    matrix_set(&z, 0, 0, NAN);
+    TEST_ASSERT(!ekf_update(&ekf, &config, &z), "NaN 观测被拒绝");
+}
+
 /* ========== 主函数 ========== */
 
 int main(void) {
@@ -633,6 +670,7 @@ int main(void) {
     test_ekf_predict_no_alias();
     test_ekf_enum_order();
     test_ekf_vs_reference();
+    test_ekf_error_paths();
 
     /* 打印结果 */
     printf("\n══════════════════════════════════════════════════════════\n");

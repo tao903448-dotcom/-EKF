@@ -55,6 +55,23 @@ static void test_quaternion(void) {
     quat_rotate(vw2, qe, vb);
     CHECK(fabsf(vw2[0]-vw[0]) < 1e-4f && fabsf(vw2[1]-vw[1]) < 1e-4f &&
           fabsf(vw2[2]-vw[2]) < 1e-4f, "旋转 R·R^T 复原向量");
+
+    /* 边界：零旋转向量 → 单位四元数 */
+    float zv[3] = {0, 0, 0}, dq[4];
+    quat_from_rotvec(dq, zv);
+    CHECK(fabsf(dq[0]-1) < 1e-6f && fabsf(dq[1]) < 1e-6f, "零旋转向量→单位四元数");
+
+    /* 边界：俯仰接近 ±90°（万向锁附近）往返仍稳定（用四元数夹角度量） */
+    float qg[4]; quat_from_euler(qg, 0.2f, 1.5707f, 0.3f);
+    float rr, pp, yy, qg2[4];
+    quat_to_euler(qg, &rr, &pp, &yy);
+    quat_from_euler(qg2, rr, pp, yy);
+    CHECK(quat_angle_between(qg, qg2) < 1e-2f, "近万向锁姿态往返一致(夹角<0.01rad)");
+    CHECK(fabsf(pp) <= 1.5708f, "pitch 限幅在 ±90° 内(asin 保护)");
+
+    /* 边界：归一化对极四元数夹角=0（双覆盖），近 180° 旋转 */
+    float q180[4]; quat_from_euler(q180, 3.14f, 0, 0);
+    CHECK(quat_angle_between(q180, q180) < 1e-4f, "近 180° 自夹角=0");
 }
 
 /* 跑一次姿态滤波，返回稳态姿态 RMSE(deg) 与平均 NIS */

@@ -389,6 +389,91 @@ bool test_matrix_cholesky_solve(void) {
     return true;
 }
 
+/**
+ * @brief LU 分解正确性：P·A = L·U
+ */
+bool test_matrix_lu(void) {
+    float d[] = {2, 1, 1,  4, 3, 3,  8, 7, 9};   /* 3x3 非奇异 */
+    Matrix A; matrix_from_array(&A, 3, 3, d);
+    Matrix L, U, P;
+    TEST_ASSERT(matrix_lu(&L, &U, &P, &A), "LU 分解成功");
+    /* 验证 P·A == L·U */
+    Matrix PA, LU;
+    matrix_mul(&PA, &P, &A);
+    matrix_mul(&LU, &L, &U);
+    for (uint8_t i = 0; i < 3; i++)
+        for (uint8_t j = 0; j < 3; j++)
+            TEST_ASSERT(fabsf(matrix_get(&PA,i,j) - matrix_get(&LU,i,j)) < 1e-4f,
+                        "P·A == L·U");
+    TEST_PASS("LU 分解测试");
+    return true;
+}
+
+/**
+ * @brief trace / diag / view 工具函数
+ */
+bool test_matrix_utils(void) {
+    float d[] = {1, 2, 3,  4, 5, 6,  7, 8, 10};
+    Matrix m; matrix_from_array(&m, 3, 3, d);
+    float tr = 0;
+    TEST_ASSERT(matrix_trace(&tr, &m), "trace 调用成功");
+    TEST_ASSERT(fabsf(tr - 16.0f) < 1e-6f, "trace = 1+5+10 = 16");
+
+    float dg[3];
+    TEST_ASSERT(matrix_diag(dg, &m), "diag 调用成功");
+    TEST_ASSERT(fabsf(dg[0]-1)<1e-6f && fabsf(dg[1]-5)<1e-6f && fabsf(dg[2]-10)<1e-6f, "对角元正确");
+
+    MatrixView v;
+    TEST_ASSERT(matrix_view_create(&v, &m, 1, 1, 2, 2), "创建 2x2 子块视图");
+    TEST_ASSERT(v.rows == 2 && v.cols == 2 && v.stride == 3, "视图维度/步长正确");
+    TEST_ASSERT(fabsf(v.data[0] - 5.0f) < 1e-6f, "视图[0][0]=5");
+    TEST_ASSERT(!matrix_view_create(&v, &m, 2, 2, 2, 2), "越界视图被拒绝");
+
+    TEST_ASSERT(matrix_is_symmetric(&m) == false, "非对称矩阵识别");
+    float ds[] = {2, 1, 1, 2};
+    Matrix sym; matrix_from_array(&sym, 2, 2, ds);
+    TEST_ASSERT(matrix_is_symmetric(&sym) == true, "对称矩阵识别");
+    TEST_PASS("trace/diag/view/对称 工具测试");
+    return true;
+}
+
+/**
+ * @brief 失败路径：维度不匹配 / 非对称 / 非正定 / 奇异
+ */
+bool test_matrix_failure_paths(void) {
+    float d22[] = {1,2,3,4}, d23[] = {1,2,3,4,5,6};
+    Matrix a, b, r;
+    matrix_from_array(&a, 2, 2, d22);
+    matrix_from_array(&b, 2, 3, d23);
+    TEST_ASSERT(!matrix_add(&r, &a, &b), "加法维度不匹配返回 false");
+    TEST_ASSERT(!matrix_sub(&r, &a, &b), "减法维度不匹配返回 false");
+    float d32[] = {1,2,3,4,5,6};
+    Matrix c; matrix_from_array(&c, 3, 2, d32);
+    TEST_ASSERT(!matrix_mul(&r, &a, &c), "乘法 a.cols!=b.rows 返回 false");
+
+    /* 非对称 → Cholesky 拒绝 */
+    float dns[] = {4, 2, 1, 3};   /* 非对称 */
+    Matrix ns; matrix_from_array(&ns, 2, 2, dns);
+    Matrix L;
+    TEST_ASSERT(!matrix_cholesky(&L, &ns), "非对称 Cholesky 返回 false");
+    /* 对称非正定 → Cholesky 拒绝 */
+    float dnpd[] = {1, 2, 2, 1};  /* 对称但非正定(特征值 -1) */
+    Matrix npd; matrix_from_array(&npd, 2, 2, dnpd);
+    TEST_ASSERT(!matrix_cholesky(&L, &npd), "非正定 Cholesky 返回 false");
+    /* 奇异 → 求逆失败 */
+    float dsing[] = {1, 2, 2, 4};  /* 奇异 */
+    Matrix sing; matrix_from_array(&sing, 2, 2, dsing);
+    Matrix inv;
+    TEST_ASSERT(!matrix_inverse(&inv, &sing), "奇异矩阵求逆返回 false");
+    /* 非方阵求逆 */
+    TEST_ASSERT(!matrix_inverse(&inv, &b), "非方阵求逆返回 false");
+    /* matrix_sub 正确性（补齐基本运算测试） */
+    Matrix s; matrix_sub(&s, &a, &a);
+    TEST_ASSERT(fabsf(matrix_get(&s,1,1)) < 1e-6f, "a-a=0");
+    TEST_PASS("失败路径测试");
+    return true;
+}
+
 /* ========== 主测试函数 ========== */
 
 int main(void) {
@@ -412,6 +497,9 @@ int main(void) {
     if (test_matrix_finite_guard()) passed++; else failed++;
     if (test_matrix_strided_view()) passed++; else failed++;
     if (test_matrix_cholesky_solve()) passed++; else failed++;
+    if (test_matrix_lu()) passed++; else failed++;
+    if (test_matrix_utils()) passed++; else failed++;
+    if (test_matrix_failure_paths()) passed++; else failed++;
 
     printf("\n========== 测试结果 ==========\n");
     printf("通过: %d\n", passed);

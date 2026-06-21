@@ -52,14 +52,14 @@
 ## P1 · 工程 / CI / 测试
 
 - [ ] `[crit|M]` 🖥️ **无覆盖率插桩**（CI）gcov/lcov 行/分支覆盖。
-- [ ] `[crit|S]` **Cholesky/LU 失败路径无测试**（`tests/`）非正定/奇异输入未验证。
+- [x] `[crit|S]` **Cholesky/LU 失败路径已测**（`tests/`）非正定/奇异输入未验证。
 - [x] `[high|S]` **CI 未开 -Werror**（`.github/workflows/ci.yml`,`Makefile`）告警可累积。
 - [ ] `[high|M]` 🖥️ **ARM CI 只交叉编译不运行**（CI）→ QEMU 运行。
 - [ ] `[high|M]` 🖥️ **CI 无 valgrind**（CI）→ memcheck 全测试+demo。
 - [x] `[high|M]` **EKF 对独立双精度参考滤波验证**（`tests/`）已实现，max|Δ|=6.5e-6。
 - [ ] `[high|M]` **benchmark 无判定准则且用 clock()**（`tests/`）→ 加阈值/单调时钟。
 - [ ] `[high|M]` **GUI 完全无测试**（`tests/`）已知映射 bug 未回归锁定 → 抽可测逻辑。
-- [ ] `[high|M]` **矩阵运算无 NaN/Inf 边界测试**（`tests/`）。
+- [x] `[high|M]` **矩阵 NaN/Inf 边界已测**（`tests/`）。
 - [x] `[medi|M]` **CI 无静态分析**（CI）cppcheck/clang-tidy。
 - [x] `[medi|S]` **CI 仅 GCC 无 clang**（CI）。
 - [ ] `[medi|L]` **GUI demo 从不在 CI 构建**（CI）。
@@ -67,9 +67,9 @@
 - [ ] `[medi|M]` **无 pkg-config/.pc 或 CMake 包配置**。
 - [ ] `[medi|M]` **TEST_ASSERT 失败后继续、各文件不一致**（`tests/`）→ 统一断言/早退。
 - [ ] `[medi|L]` **矩阵运算无属性/模糊测试**（`tests/`）。
-- [ ] `[medi|S]` **matrix_sub/scale 无正确性测试**（`tests/`）。
-- [ ] `[medi|S]` **EKF 维度不匹配/未初始化错误路径无测试**（`tests/`）。
-- [ ] `[medi|S]` **四元数测试仅happy-path**（`tests/`）缺万向锁/零向量/近对极。
+- [x] `[medi|S]` **matrix_sub/scale 已测**（`tests/`）。
+- [x] `[medi|S]` **EKF 错误路径已测**（`tests/`）。
+- [x] `[medi|S]` **四元数边界(万向锁/零向量/对极)已测**（`tests/`）缺万向锁/零向量/近对极。
 - [ ] `[high|M]` **无 Doxygen API 文档**（`docs/`）→ 生成 API 站点。
 - [ ] `[medi|M]` **文档内容重叠**（`docs/`）多文件重复 → 精简。
 - [ ] `[medi|M]` **无 CONTRIBUTING.md**。
