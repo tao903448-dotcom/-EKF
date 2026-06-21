@@ -38,6 +38,23 @@
 #define MATRIX_PIVOT_EPS    1e-10f   /* 主元/奇异判定 */
 #define MATRIX_SYM_EPS      1e-5f    /* 对称性判定 */
 
+/* 有限性检查：任何元素为 NaN/Inf 则返回 false。
+   注意 NaN 的比较恒为 false（如 NaN<=0），若不显式拦截会被误判为"成功"，
+   单次传感器野值即可毒化整个状态估计——故数值敏感路径入口先做此扫描。 */
+bool matrix_is_finite(const Matrix *m) {
+    if (m == NULL) {
+        return false;
+    }
+    for (uint8_t i = 0; i < m->rows; i++) {
+        for (uint8_t j = 0; j < m->cols; j++) {
+            if (!isfinite(m->data[MATRIX_INDEX(m, i, j)])) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 /* ========== 矩阵创建和初始化 ========== */
 
 bool matrix_init(Matrix *mat, uint8_t rows, uint8_t cols) {
@@ -108,12 +125,28 @@ bool matrix_copy(Matrix *dst, const Matrix *src) {
 
 /* ========== 基本矩阵运算（逐元素，result 可与输入别名） ========== */
 
+/* 逐元素运算的"连续存储"判定：输入与输出都满足 stride==cols 时，可走扁平
+   (含 NEON)快路径；否则(如 MatrixView 子块 stride>cols)必须按行列索引，
+   避免静默读错。普通 Matrix 恒满足，故常见路径仍走快路径。 */
+static inline bool matrix_is_contig(const Matrix *m) {
+    return m->stride == m->cols;
+}
+
 bool matrix_add(Matrix *result, const Matrix *a, const Matrix *b) {
     if (result == NULL || a == NULL || b == NULL) {
         return false;
     }
     if (a->rows != b->rows || a->cols != b->cols) {
         return false;
+    }
+
+    if (!matrix_is_contig(a) || !matrix_is_contig(b)) {
+        for (uint8_t r = 0; r < a->rows; r++)
+            for (uint8_t c = 0; c < a->cols; c++)
+                result->data[r * a->cols + c] =
+                    a->data[MATRIX_INDEX(a, r, c)] + b->data[MATRIX_INDEX(b, r, c)];
+        result->rows = a->rows; result->cols = a->cols; result->stride = a->cols;
+        return true;
     }
 
     result->rows = a->rows;
@@ -145,6 +178,15 @@ bool matrix_sub(Matrix *result, const Matrix *a, const Matrix *b) {
         return false;
     }
 
+    if (!matrix_is_contig(a) || !matrix_is_contig(b)) {
+        for (uint8_t r = 0; r < a->rows; r++)
+            for (uint8_t c = 0; c < a->cols; c++)
+                result->data[r * a->cols + c] =
+                    a->data[MATRIX_INDEX(a, r, c)] - b->data[MATRIX_INDEX(b, r, c)];
+        result->rows = a->rows; result->cols = a->cols; result->stride = a->cols;
+        return true;
+    }
+
     result->rows = a->rows;
     result->cols = a->cols;
     result->stride = a->cols;
@@ -169,6 +211,15 @@ bool matrix_sub(Matrix *result, const Matrix *a, const Matrix *b) {
 bool matrix_scale(Matrix *result, const Matrix *mat, float scalar) {
     if (result == NULL || mat == NULL) {
         return false;
+    }
+
+    if (!matrix_is_contig(mat)) {
+        for (uint8_t r = 0; r < mat->rows; r++)
+            for (uint8_t c = 0; c < mat->cols; c++)
+                result->data[r * mat->cols + c] =
+                    mat->data[MATRIX_INDEX(mat, r, c)] * scalar;
+        result->rows = mat->rows; result->cols = mat->cols; result->stride = mat->cols;
+        return true;
     }
 
     result->rows = mat->rows;
@@ -285,6 +336,9 @@ bool matrix_transpose(Matrix *result, const Matrix *mat) {
 bool matrix_inverse(Matrix *result, const Matrix *mat) {
     if (result == NULL || mat == NULL || !matrix_is_square(mat)) {
         return false;
+    }
+    if (!matrix_is_finite(mat)) {
+        return false;   /* 拦截 NaN/Inf，避免误判为成功并污染下游 */
     }
 
     uint8_t n = mat->rows;
@@ -431,6 +485,9 @@ bool matrix_trace(float *result, const Matrix *mat) {
 bool matrix_cholesky(Matrix *L, const Matrix *mat) {
     if (L == NULL || mat == NULL || !matrix_is_square(mat)) {
         return false;
+    }
+    if (!matrix_is_finite(mat)) {
+        return false;   /* NaN<=0 恒 false，会绕过正定判定，须先拦截 */
     }
     if (!matrix_is_symmetric(mat)) {
         return false;

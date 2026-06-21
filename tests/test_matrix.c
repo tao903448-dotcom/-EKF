@@ -11,6 +11,7 @@
 #include "matrix.h"
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
 #include <assert.h>
 
 /* 测试辅助宏 */
@@ -308,6 +309,54 @@ bool test_matrix_inverse_large(void) {
     return true;
 }
 
+/**
+ * @brief NaN/Inf 守卫（回归：NaN<=0 恒 false 会被误判为成功）
+ */
+bool test_matrix_finite_guard(void) {
+    float ok[] = {4, 1, 1, 3};
+    Matrix m; matrix_from_array(&m, 2, 2, ok);
+    TEST_ASSERT(matrix_is_finite(&m), "有限矩阵 matrix_is_finite=true");
+
+    Matrix bad; matrix_from_array(&bad, 2, 2, ok);
+    matrix_set(&bad, 0, 0, NAN);
+    TEST_ASSERT(!matrix_is_finite(&bad), "含 NaN 矩阵 matrix_is_finite=false");
+
+    Matrix inv, L;
+    TEST_ASSERT(!matrix_inverse(&inv, &bad), "含 NaN 求逆应返回 false");
+    TEST_ASSERT(!matrix_cholesky(&L, &bad), "含 NaN Cholesky 应返回 false");
+
+    matrix_set(&bad, 0, 0, INFINITY);
+    TEST_ASSERT(!matrix_is_finite(&bad), "含 Inf 矩阵 matrix_is_finite=false");
+
+    TEST_PASS("NaN/Inf 守卫测试");
+    return true;
+}
+
+/**
+ * @brief 逐元素运算的步长视图正确性（回归：扁平索引会读错非连续视图）
+ */
+bool test_matrix_strided_view(void) {
+    /* 2x4 缓冲: 行0=[1,2,|99,99] 行1=[3,4,|99,99]，stride=4 的 2x2 视图 */
+    Matrix view;
+    float buf[8] = {1, 2, 99, 99, 3, 4, 99, 99};
+    memcpy(view.data, buf, sizeof buf);
+    view.rows = 2; view.cols = 2; view.stride = 4;
+
+    Matrix result;
+    TEST_ASSERT(matrix_add(&result, &view, &view), "视图加法返回 true");
+    TEST_ASSERT(fabsf(matrix_get(&result, 0, 0) - 2.0f) < 1e-6f, "视图加法 [0][0]=2");
+    TEST_ASSERT(fabsf(matrix_get(&result, 0, 1) - 4.0f) < 1e-6f, "视图加法 [0][1]=4");
+    TEST_ASSERT(fabsf(matrix_get(&result, 1, 0) - 6.0f) < 1e-6f, "视图加法 [1][0]=6");
+    TEST_ASSERT(fabsf(matrix_get(&result, 1, 1) - 8.0f) < 1e-6f, "视图加法 [1][1]=8");
+
+    Matrix sc;
+    TEST_ASSERT(matrix_scale(&sc, &view, 10.0f), "视图数乘返回 true");
+    TEST_ASSERT(fabsf(matrix_get(&sc, 1, 1) - 40.0f) < 1e-6f, "视图数乘 [1][1]=40");
+
+    TEST_PASS("步长视图逐元素运算测试");
+    return true;
+}
+
 /* ========== 主测试函数 ========== */
 
 int main(void) {
@@ -328,6 +377,8 @@ int main(void) {
     if (test_matrix_mul_aliasing()) passed++; else failed++;
     if (test_matrix_transpose_aliasing()) passed++; else failed++;
     if (test_matrix_inverse_large()) passed++; else failed++;
+    if (test_matrix_finite_guard()) passed++; else failed++;
+    if (test_matrix_strided_view()) passed++; else failed++;
 
     printf("\n========== 测试结果 ==========\n");
     printf("通过: %d\n", passed);

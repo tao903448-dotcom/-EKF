@@ -267,6 +267,16 @@ bool matrix_is_symmetric(const Matrix *mat);
  */
 bool matrix_dims_match(const Matrix *a, const Matrix *b);
 
+/**
+ * @brief 检查矩阵所有元素是否有限（无 NaN/Inf）
+ * @param mat 矩阵指针
+ * @return 全部有限返回true；含 NaN/Inf 或 NULL 返回false
+ *
+ * 用于数值敏感路径/外部观测入口拦截野值：NaN 的比较恒为 false，
+ * 会绕过 `val<=0`、`|v|<eps` 等判定而被误判为成功。
+ */
+bool matrix_is_finite(const Matrix *mat);
+
 #ifdef __cplusplus
 }
 #endif

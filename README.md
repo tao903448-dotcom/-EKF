@@ -9,7 +9,7 @@
 [![CI](https://github.com/tao903448-dotcom/-EKF/actions/workflows/ci.yml/badge.svg)](https://github.com/tao903448-dotcom/-EKF/actions/workflows/ci.yml)
 ![language](https://img.shields.io/badge/language-C99-blue)
 ![platform](https://img.shields.io/badge/platform-Linux%20|%20macOS%20|%20Windows%20|%20ARM-lightgrey)
-![tests](https://img.shields.io/badge/tests-65%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-67%20passing-brightgreen)
 ![sanitizers](https://img.shields.io/badge/ASan%2FUBSan-clean-success)
 ![alloc](https://img.shields.io/badge/heap-zero%20malloc-orange)
 
@@ -24,7 +24,7 @@
 - 🛡️ **鲁棒 + 自适应见真章**：振动野值下姿态 RMSE **↓75%**、机动失配下 **↓39%**，并把一致性指标 NIS 从 73 拉回 ≈4。
 - 🔬 **严格可复现评测**：多场景 × 20 种子蒙特卡洛，报告 RMSE / 零偏误差 / NIS 一致性，可导出 CSV。
 - ⚙️ **嵌入式工程级**：零 `malloc`、alias-safe 矩阵库、可选 ARM NEON（单文件，无重复符号）、四元数约束归一化钩子、数值雅可比。
-- ✅ **质量保障**：63 单元/回归测试全过，ASan/UBSan 零报错，`-Wall -Wextra` 零警告，GitHub Actions CI（x86 / 消毒 / ARM 交叉编译）。
+- ✅ **质量保障**：67 单元/回归测试全过，ASan/UBSan 零报错，`-Wall -Wextra -Werror` 零警告；GitHub Actions 六作业 CI（gcc / clang / 严格告警 / ASan-UBSan / ARM 交叉编译 / cppcheck 静态分析）。
 
 > 本仓库是对原始作品的一次**深度剖析 + 大刀阔斧重构 + 国奖级迭代**。
 > 修复了会让标准 EKF 协方差坍缩的致命缺陷、矩阵求逆越界、Student-t 方向写反等问题，
@@ -93,7 +93,7 @@ flowchart LR
 
 ```bash
 make               # 构建：静态库 + 单元测试 + 两个命令行 demo
-make test          # 运行全部 63 个单元/回归测试
+make test          # 运行全部 67 个单元/回归测试
 make run-attitude  # ⭐ 四旋翼姿态估计：四方法 × 三场景 蒙特卡洛评测
 make run-demo      # 1D/2D 四方法诚实双场景对比
 make asan          # AddressSanitizer / UBSan 下跑测试
@@ -124,13 +124,13 @@ gcc -I include examples/attitude_demo.c \
 │   ├── ekf.c           predict/update + 4 种方法 + 归一化钩子
 │   ├── quaternion.c    四元数姿态运算
 │   └── attitude.c      姿态模型(数值雅可比)
-├── tests/              matrix(11) / ekf(41) / attitude(11) + benchmark
+├── tests/              matrix(13) / ekf(41) / attitude(13) + benchmark
 ├── examples/
 │   ├── ekf_demo.c      1D/2D 四方法对比
 │   ├── attitude_demo.c 四旋翼姿态估计蒙特卡洛评测
 │   └── imgui_demo/     Windows + DX11 + ImGui 图形仪表盘
 ├── docs/               技术文档 / 深度剖析与优化报告 / 姿态估计实验报告
-├── .github/workflows/  ci.yml（构建+测试 / ASan / ARM 三作业）
+├── .github/workflows/  ci.yml（gcc/clang/严格/ASan/ARM/cppcheck 六作业）
 └── Makefile
 ```
 
@@ -163,11 +163,11 @@ for (int k = 0; k < N; k++) {
 
 | 套件 | 结果 | 覆盖 |
 |---|:--:|---|
-| `test_matrix` | 11 / 11 | 别名安全、14×14 求逆越界回归、行列式/分解 |
+| `test_matrix` | 13 / 13 | 别名安全、14×14 求逆越界回归、行列式/分解 |
 | `test_ekf` | 41 / 41 | 协方差不坍缩、Standard≡Joseph、抗野值、预测不混叠、枚举守卫 |
 | `test_attitude` | 13 / 13 | 四元数运算、姿态精度/一致性、鲁棒性、加速度门控回归 |
 
-GitHub Actions 三作业：**x86 构建+测试** · **ASan/UBSan** · **ARM(NEON) 交叉编译**。
+GitHub Actions 六作业：**gcc 构建+测试** · **clang 构建** · **严格告警(-Werror)** · **ASan/UBSan** · **ARM(NEON) 交叉编译** · **cppcheck 静态分析**。
 
 ---
 
@@ -177,7 +177,7 @@ GitHub Actions 三作业：**x86 构建+测试** · **ASan/UBSan** · **ARM(NEON
 - [x] 仓库规范化（去 zip、标准布局、.gitignore）
 - [x] 四旋翼姿态估计 EKF + 严格蒙特卡洛评测 + CI
 - [ ] 乘性误差状态 EKF（MEKF）对照实现
-- [ ] 加速度幅值门控 / 运动模型融合，进一步压低机动失配残差
+- [x] 加速度幅值门控（已完成；运动模型融合待续，进一步压低机动失配残差）
 - [ ] 真实数据集（如 EuRoC）回放验证
 
 ---

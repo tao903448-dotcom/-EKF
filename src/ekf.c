@@ -228,6 +228,10 @@ bool ekf_update(EKF_State *state, const EKF_Config *config, const Matrix *z) {
     if (config->measurement_func == NULL || config->measurement_jacobian_func == NULL) {
         return false;
     }
+    /* 拦截非有限观测（NaN/Inf）：丢弃该量测、保留预测，避免毒化状态 */
+    if (!matrix_is_finite(z)) {
+        return false;
+    }
 
     matrix_copy(&state->z, z);
 
