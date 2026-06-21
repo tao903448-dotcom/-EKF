@@ -47,28 +47,32 @@ BENCH_BIN    = $(BUILD_DIR)/test_benchmark_fixed
 # ===== 默认目标 =====
 all: lib tests demo
 
-$(shell mkdir -p $(BUILD_DIR) $(LIB_DIR))
+# 输出目录按需创建（用 order-only 前置依赖，避免 clean 后再构建找不到目录，
+# 这正是 `make asan`(= clean + 带消毒重建) 在 CI 上失败的根因）。
+$(BUILD_DIR) $(LIB_DIR):
+	@mkdir -p $@
 
 # 编译源文件
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-# 静态库
-lib: $(OBJ_FILES)
+# 静态库（$(LIB_FILE) 为真实文件目标，使依赖它的 test/demo 在 clean 后也能重建）
+lib: $(LIB_FILE)
+$(LIB_FILE): $(OBJ_FILES) | $(LIB_DIR)
 	ar rcs $(LIB_FILE) $(OBJ_FILES)
 	@echo "库文件已创建: $(LIB_FILE)"
 
 # 单元测试
 tests: $(TEST_BIN)
-$(BUILD_DIR)/%: $(TEST_DIR)/%.c $(LIB_FILE)
+$(BUILD_DIR)/%: $(TEST_DIR)/%.c $(LIB_FILE) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L$(LIB_DIR) -lekf $(LDFLAGS) -o $@
 
 # 可移植命令行 demo（1D/2D 算法对比 + 四旋翼姿态估计）
 demo: $(DEMO_BIN) $(ATT_DEMO_BIN)
-$(DEMO_BIN): $(EX_DIR)/ekf_demo.c $(LIB_FILE)
+$(DEMO_BIN): $(EX_DIR)/ekf_demo.c $(LIB_FILE) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L$(LIB_DIR) -lekf $(LDFLAGS) -o $@
 	@echo "命令行 demo 已创建: $(DEMO_BIN)"
-$(ATT_DEMO_BIN): $(EX_DIR)/attitude_demo.c $(LIB_FILE)
+$(ATT_DEMO_BIN): $(EX_DIR)/attitude_demo.c $(LIB_FILE) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L$(LIB_DIR) -lekf $(LDFLAGS) -o $@
 	@echo "姿态估计 demo 已创建: $(ATT_DEMO_BIN)"
 
@@ -77,7 +81,7 @@ run-attitude: $(ATT_DEMO_BIN)
 
 # 性能基准
 bench: $(BENCH_BIN)
-$(BENCH_BIN): $(TEST_DIR)/test_benchmark_fixed.c $(LIB_FILE)
+$(BENCH_BIN): $(TEST_DIR)/test_benchmark_fixed.c $(LIB_FILE) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L$(LIB_DIR) -lekf $(LDFLAGS) -o $@
 
 # 运行测试
@@ -108,16 +112,17 @@ ARM_BUILD_DIR = build_arm
 ARM_LIB_DIR   = lib_arm
 ARM_OBJ       = $(patsubst $(SRC_DIR)/%.c, $(ARM_BUILD_DIR)/%.o, $(SRC_FILES))
 
-$(shell mkdir -p $(ARM_BUILD_DIR) $(ARM_LIB_DIR))
+$(ARM_BUILD_DIR) $(ARM_LIB_DIR):
+	@mkdir -p $@
 
-$(ARM_BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+$(ARM_BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(ARM_BUILD_DIR)
 	$(ARM_CC) $(ARM_CFLAGS) $(INCLUDES) -c $< -o $@
 
-arm_lib: $(ARM_OBJ)
+arm_lib: $(ARM_OBJ) | $(ARM_LIB_DIR)
 	$(ARM_AR) rcs $(ARM_LIB_DIR)/libekf.a $(ARM_OBJ)
 	@echo "ARM 库文件已创建: $(ARM_LIB_DIR)/libekf.a"
 
-arm_test: arm_lib
+arm_test: arm_lib | $(ARM_BUILD_DIR)
 	$(ARM_CC) $(ARM_CFLAGS) $(INCLUDES) $(TEST_DIR)/test_matrix.c \
 		-L$(ARM_LIB_DIR) -lekf -lm -o $(ARM_BUILD_DIR)/test_matrix_arm
 	$(ARM_CC) $(ARM_CFLAGS) $(INCLUDES) $(TEST_DIR)/test_ekf.c \
