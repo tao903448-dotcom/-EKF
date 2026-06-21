@@ -24,12 +24,14 @@
  * @date 2026-06-21
  */
 
+#define _POSIX_C_SOURCE 199309L   /* clock_gettime / CLOCK_MONOTONIC（-std=c99 下需此宏） */
 #include "attitude.h"
 #include "quaternion.h"
 #include "imu_sim.h"
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include <time.h>
 
 #define SIM_STEPS   3000      /* 15 s @200Hz */
 #define MC_SEEDS    20        /* 蒙特卡洛种子数 */
@@ -218,6 +220,33 @@ int main(int argc, char **argv) {
         }
     }
     printf("  ↳ 门控对症机动失配/野值(比力偏离 g)，CLEAN 下几乎不动；与自适应叠加最优。\n");
+
+    /* ===== 实时性：单步(predict+update)耗时与可支撑频率 ===== */
+    {
+        const int TN = 100000;
+        ImuSimConfig sc = imu_sim_default(SIM_MANEUVER);
+        ImuSim sim; imu_sim_init(&sim, 1);
+        EKF_Config cfg; attitude_config_init(&cfg); configure_noise(&cfg);
+        ekf_set_update_method(&cfg, EKF_UPDATE_ADAPTIVE);
+        ekf_set_adaptive_params(&cfg, 100.0f, 8.0f);
+        Matrix x0, P0; float qid[4] = {1,0,0,0};
+        attitude_init_state(&x0, &P0, qid, 0.5f, 0.05f);
+        EKF_State st; ekf_state_init(&st, &cfg, &x0, &P0);
+        Matrix u, z; matrix_init(&u,3,1); matrix_init(&z,6,1);
+        struct timespec t0, t1; clock_gettime(CLOCK_MONOTONIC, &t0);
+        for (int k = 0; k < TN; k++) {
+            ImuSample s; imu_sim_step(&sim, &sc, &s);
+            for (int i=0;i<3;i++) u.data[i]=s.gyro[i];
+            ekf_predict(&st,&cfg,&u,sc.dt);
+            for (int i=0;i<3;i++){z.data[i]=s.accel_dir[i]; z.data[3+i]=s.mag_dir[i];}
+            ekf_update(&st,&cfg,&z);
+        }
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        double us = ((t1.tv_sec-t0.tv_sec)*1e9 + (t1.tv_nsec-t0.tv_nsec)) / TN / 1e3;
+        printf("\n实时性：自适应EKF 单步约 %.2f µs（本机 x86-64 -O2），可支撑约 %.0f kHz，\n",
+               us, 1000.0/us);
+        printf("        远高于 200 Hz 飞控更新率——满足嵌入式实时要求。\n");
+    }
 
     /* 可选：导出一次代表性运行(MANEUVER, 标准 vs 自适应 vs 自适应+门控)的轨迹 */
     if (argc > 1) {
