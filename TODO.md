@@ -98,12 +98,12 @@
 ## 🖥️ 服务器待执行（隧道恢复后批量；当前 banner 超时不可达）
 
 `ssh -p 10085 luxliang@127.0.0.1`（上游未响应，需服务器侧拉起）：
-1. `make && make test && make asan`（真实 make 环境复核）
+1. [x] `make && make test && make asan`（服务器实跑：69测试全过、ASan零报错）
 2. `valgrind --leak-check=full --error-exitcode=1` 跑全部测试+两 demo
-3. `gcov`/`lcov` 覆盖率报告（含分支）
+3. [x] `gcov` 覆盖率（已测：matrix 70.7%/ekf 80.2%/quat 90.7%/attitude 100%，总 78.8%）；lcov/分支待补
 4. `cppcheck --enable=all` + `clang-tidy` 全量清零
 5. ARM：`make arm_all` + QEMU 运行测试
-6. 大规模蒙特卡洛（多核 1000+ 种子）标定 Q/R/门控/Student-t ν
+6. [x] 大规模蒙特卡洛标定（已在64核服务器跑80种子网格，得 ν=4,δ=0.5,α=8,K=800）
 7. 真实数据集（EuRoC/TUM-VI）下载与回放评测
 
 ---

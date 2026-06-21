@@ -42,7 +42,7 @@ DEMO_BIN     = $(BUILD_DIR)/ekf_demo
 ATT_DEMO_BIN = $(BUILD_DIR)/attitude_demo
 BENCH_BIN    = $(BUILD_DIR)/test_benchmark_fixed
 
-.PHONY: all lib tests demo bench test run-demo run-attitude asan clean stats arm_lib arm_test arm_all arm_clean
+.PHONY: all lib tests demo bench test run-demo run-attitude sweep asan clean stats arm_lib arm_test arm_all arm_clean
 
 # ===== 默认目标 =====
 all: lib tests demo
@@ -82,6 +82,12 @@ $(ATT_DEMO_BIN): $(EX_DIR)/attitude_demo.c $(LIB_FILE)
 
 run-attitude: $(ATT_DEMO_BIN)
 	@./$(ATT_DEMO_BIN)
+
+# 参数寻优（OpenMP 多核蒙特卡洛网格搜索；建议在多核服务器上跑）
+sweep: $(LIB_FILE)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -fopenmp $(INCLUDES) $(EX_DIR)/param_sweep.c -L$(LIB_DIR) -lekf $(LDFLAGS) -o $(BUILD_DIR)/param_sweep
+	@echo "运行: OMP_NUM_THREADS=\$$(nproc) ./$(BUILD_DIR)/param_sweep 80"
 
 # 性能基准
 bench: $(BENCH_BIN)

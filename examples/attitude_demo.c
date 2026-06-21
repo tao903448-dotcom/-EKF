@@ -50,8 +50,8 @@ typedef struct {
 /* 加速度自适应门控因子（acceleration rejection）：
    比力幅值越偏离重力 g，说明加速度计越受线加速度/野值污染，
    其"重力方向"越不可信 → 越放大加速度观测噪声。CLEAN 下偏差≈0，门控≈1。 */
-#define GATE_K   200.0f
-#define GATE_MAX 200.0f
+#define GATE_K   800.0f   /* 64核蒙特卡洛寻优 (docs 报告 §5.2)：强降权按需触发，机动失配大降而良性场景不变 */
+#define GATE_MAX 1000.0f
 static float accel_gate(float accel_mag) {
     float dev = fabsf(accel_mag / IMU_G - 1.0f);
     float g = 1.0f + GATE_K * dev * dev;
@@ -78,8 +78,8 @@ static RunStats run_once(ImuScenario scenario, EKF_UpdateMethod method,
     EKF_Config cfg; attitude_config_init(&cfg);
     configure_noise(&cfg);
     ekf_set_update_method(&cfg, method);
-    ekf_set_student_t_params(&cfg, 5.0f, 1.0f);
-    ekf_set_adaptive_params(&cfg, 100.0f, 1.0f);
+    ekf_set_student_t_params(&cfg, 4.0f, 0.5f);   /* 寻优: OUTLIER 最优 */
+    ekf_set_adaptive_params(&cfg, 100.0f, 8.0f);  /* 寻优: MANEUVER 大降, CLEAN/OUTLIER 不变 */
 
     Matrix x0, P0; float qid[4] = {1, 0, 0, 0};
     attitude_init_state(&x0, &P0, qid, 0.5f, 0.05f);

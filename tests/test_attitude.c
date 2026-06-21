@@ -71,8 +71,8 @@ static void run_filter_g(ImuScenario scenario, EKF_UpdateMethod method, int gate
     ekf_set_process_noise(&cfg, &Q);
     ekf_set_measurement_noise(&cfg, &R);
     ekf_set_update_method(&cfg, method);
-    ekf_set_student_t_params(&cfg, 5.0f, 1.0f);
-    ekf_set_adaptive_params(&cfg, 100.0f, 1.0f);
+    ekf_set_student_t_params(&cfg, 4.0f, 0.5f);
+    ekf_set_adaptive_params(&cfg, 100.0f, 8.0f);
 
     Matrix x0, P0; float qid[4] = {1, 0, 0, 0};
     attitude_init_state(&x0, &P0, qid, 0.5f, 0.05f);
@@ -87,7 +87,7 @@ static void run_filter_g(ImuScenario scenario, EKF_UpdateMethod method, int gate
         for (int i = 0; i < 3; i++) { z.data[i] = s.accel_dir[i]; z.data[3+i] = s.mag_dir[i]; }
         if (gate) {
             float dev = fabsf(s.accel_mag / IMU_G - 1.0f);
-            float gs = 1.0f + 200.0f * dev * dev; if (gs > 200.0f) gs = 200.0f;
+            float gs = 1.0f + 800.0f * dev * dev; if (gs > 1000.0f) gs = 1000.0f;
             for (int i = 0; i < 3; i++) Rg.data[i*6+i] = 4e-4f * gs;
             for (int i = 3; i < 6; i++) Rg.data[i*6+i] = 4e-4f;
             ekf_set_measurement_noise(&cfg, &Rg);
