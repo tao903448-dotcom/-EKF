@@ -2,6 +2,16 @@
 
 本项目遵循语义化版本思想；日期为 ISO 格式。
 
+## [3.4.0] - 2026-06-21 —— 核心新息卡方门控
+
+### 新增
+- **EKF 核心新息门控**（innovation gating）：`ekf_set_nis_gate(cfg, thr)`，按
+  `NIS = yᵀS⁻¹y` 超阈值即整步拒绝野值量测（仅保留预测），对四种更新方法通用；
+  被拒次数记于 `EKF_State.rejected_count`，可经 `ekf_get_rejected_count` 读取。
+- 效果：OUTLIER 场景下，仅此一项即让**标准 EKF** 姿态 RMSE 由 1.94°→**0.40°**
+  （拒绝 230 个野值），无需 Student-t。默认关闭，不影响既有行为。
+- 测试 +3（test_attitude 17→20，全套 **88** 通过），ASan/UBSan 干净、`-Werror` 零告警。
+
 ## [3.3.0] - 2026-06-21 —— 测试硬化 + README 精修
 
 ### 测试（69 → 85）

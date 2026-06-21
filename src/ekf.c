@@ -72,6 +72,8 @@ bool ekf_config_init(EKF_Config *config, uint8_t state_dim, uint8_t measurement_
     config->adaptive_window = 50.0f;
     config->adaptive_factor = 0.95f;
 
+    config->nis_gate = 0.0f;   /* 默认关闭新息门控 */
+
     return true;
 }
 
@@ -134,6 +136,16 @@ void ekf_set_state_normalize(EKF_Config *config, EKF_StateNormalizeFunc fn) {
     }
 }
 
+void ekf_set_nis_gate(EKF_Config *config, float nis_threshold) {
+    if (config != NULL) {
+        config->nis_gate = nis_threshold;
+    }
+}
+
+uint32_t ekf_get_rejected_count(const EKF_State *state) {
+    return (state != NULL) ? state->rejected_count : 0u;
+}
+
 /* ========== 状态函数 ========== */
 
 bool ekf_state_init(EKF_State *state, const EKF_Config *config,
@@ -171,6 +183,7 @@ bool ekf_state_init(EKF_State *state, const EKF_Config *config,
 
     state->initialized = true;
     state->step_count = 0;
+    state->rejected_count = 0;
 
     return true;
 }
@@ -246,6 +259,17 @@ bool ekf_update(EKF_State *state, const EKF_Config *config, const Matrix *z) {
     /* 新息 y = z - z_pred */
     if (!matrix_sub(&state->y, &state->z, &state->z_pred)) {
         return false;
+    }
+
+    /* 新息卡方门控：NIS=yᵀS⁻¹y 超阈值 → 判为野值，整步拒绝该量测、仅保留预测。
+       对所有更新方法通用，是粗野值的硬性前置防线。 */
+    if (config->nis_gate > 0.0f) {
+        if (!ekf_innovation_cov(state, &config->R)) return false;  /* 基础 S */
+        float nis = ekf_nis(state);
+        if (nis > config->nis_gate) {
+            state->rejected_count++;
+            return true;   /* 拒绝量测：保留预测的 x、P */
+        }
     }
 
     bool ok;

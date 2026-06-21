@@ -173,6 +173,49 @@ static void test_attitude_accel_gating(void) {
     CHECK(r_clean_gate < r_clean_no * 1.1 + 1e-6, "CLEAN 下门控不明显劣化(<+10%)");
 }
 
+/* 跑 OUTLIER 场景的标准 EKF，可选开启 NIS 门控，返回 RMSE 与拒绝数 */
+static double run_gated(float nis_gate, uint32_t seed, uint32_t *rejected) {
+    ImuSimConfig sc = imu_sim_default(SIM_OUTLIER);
+    ImuSim sim; imu_sim_init(&sim, seed);
+    EKF_Config cfg; attitude_config_init(&cfg);
+    Matrix Q, R; matrix_zeros(&Q, 7, 7); matrix_zeros(&R, 6, 6);
+    for (int i = 0; i < 4; i++) Q.data[i*7+i] = 1e-6f;
+    for (int i = 4; i < 7; i++) Q.data[i*7+i] = 1e-9f;
+    for (int i = 0; i < 6; i++) R.data[i*6+i] = 4e-4f;
+    ekf_set_process_noise(&cfg, &Q); ekf_set_measurement_noise(&cfg, &R);
+    ekf_set_update_method(&cfg, EKF_UPDATE_STANDARD);
+    ekf_set_nis_gate(&cfg, nis_gate);   /* 0=关闭 */
+    Matrix x0, P0; float qid[4] = {1,0,0,0};
+    attitude_init_state(&x0, &P0, qid, 0.5f, 0.05f);
+    EKF_State st; ekf_state_init(&st, &cfg, &x0, &P0);
+    Matrix u, z; matrix_init(&u,3,1); matrix_init(&z,6,1);
+    int N = 2000, warm = N/2; double sse = 0; int cnt = 0;
+    for (int k = 0; k < N; k++) {
+        ImuSample s; imu_sim_step(&sim, &sc, &s);
+        for (int i=0;i<3;i++) u.data[i]=s.gyro[i];
+        ekf_predict(&st,&cfg,&u,sc.dt);
+        for (int i=0;i<3;i++){z.data[i]=s.accel_dir[i]; z.data[3+i]=s.mag_dir[i];}
+        ekf_update(&st,&cfg,&z);
+        float qe[4]={st.x.data[0],st.x.data[1],st.x.data[2],st.x.data[3]};
+        float ang = quat_angle_between(qe, s.q_true)*DEG;
+        if (k>=warm){ sse += (double)ang*ang; cnt++; }
+    }
+    if (rejected) *rejected = ekf_get_rejected_count(&st);
+    return sqrt(sse/cnt);
+}
+
+static void test_ekf_nis_gate(void) {
+    printf("\nTest: 核心 NIS 卡方门控（野值硬拒绝）\n");
+    uint32_t rej_off = 0, rej_on = 0;
+    double r_off = run_gated(0.0f, 42u, &rej_off);       /* 关闭 */
+    double r_on  = run_gated(25.0f, 42u, &rej_on);       /* chi²_{0.99}(6)≈16.8，取 25 */
+    printf("  OUTLIER 标准EKF: 无门控=%.3f(拒绝%u)  +门控=%.3f(拒绝%u) deg\n",
+           r_off, rej_off, r_on, rej_on);
+    CHECK(rej_off == 0, "门控关闭时不拒绝任何量测");
+    CHECK(rej_on > 0, "门控开启时拒绝了野值量测");
+    CHECK(r_on < 0.7 * r_off, "门控使标准 EKF 在野值下误差显著下降(>30%)");
+}
+
 int main(void) {
     printf("========== 姿态 EKF / 四元数 测试 ==========\n");
     test_quaternion();
@@ -180,6 +223,7 @@ int main(void) {
     test_attitude_standard_equals_joseph();
     test_attitude_robust();
     test_attitude_accel_gating();
+    test_ekf_nis_gate();
     printf("\n========== 结果 ==========\n通过: %d\n失败: %d\n总计: %d\n",
            passed, failed, passed + failed);
     return failed > 0 ? 1 : 0;

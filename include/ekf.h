@@ -107,6 +107,11 @@ typedef struct {
     /* 自适应参数 */
     float adaptive_window;  /**< 自适应窗口大小 */
     float adaptive_factor;  /**< 自适应因子 */
+
+    /* 新息卡方门控（innovation gating，0 = 关闭）：
+       归一化新息平方 NIS = yᵀS⁻¹y 超过该阈值则判为野值，整步拒绝该量测、
+       仅保留预测。对所有更新方法通用，可作粗野值的硬性前置防线。 */
+    float nis_gate;
 } EKF_Config;
 
 /**
@@ -137,6 +142,7 @@ typedef struct {
     /* 状态标志 */
     bool initialized;   /**< 是否已初始化 */
     uint32_t step_count; /**< 步数计数器 */
+    uint32_t rejected_count; /**< 被新息门控拒绝的量测数 */
 } EKF_State;
 
 /**
@@ -207,6 +213,22 @@ void ekf_set_update_method(EKF_Config *config, EKF_UpdateMethod method);
  * @param fn 归一化回调；传 NULL 取消
  */
 void ekf_set_state_normalize(EKF_Config *config, EKF_StateNormalizeFunc fn);
+
+/**
+ * @brief 设置新息卡方门控阈值（innovation gating）
+ * @param config 配置指针
+ * @param nis_threshold NIS=yᵀS⁻¹y 的拒绝阈值（建议取 chi²_{0.99}(观测维)）；
+ *        ≤0 关闭门控
+ *
+ * 开启后，每步更新前先算 NIS，超阈值则视为野值、整步拒绝该量测（仅保留预测），
+ * 被拒次数记于 EKF_State.rejected_count。对所有更新方法通用。
+ */
+void ekf_set_nis_gate(EKF_Config *config, float nis_threshold);
+
+/**
+ * @brief 获取被新息门控拒绝的量测数
+ */
+uint32_t ekf_get_rejected_count(const EKF_State *state);
 
 /**
  * @brief 初始化EKF状态

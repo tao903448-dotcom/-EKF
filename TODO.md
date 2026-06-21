@@ -34,7 +34,7 @@
   加 `matrix_cholesky_solve`/`matrix_solve`，ekf_gain/ekf_nis 改 Cholesky 解。
 - [ ] `[high|L]` **平方根/UD 协方差分解滤波**（`src/`）数值更稳，长跑不失正定。
 - [ ] `[high|L]` **自适应仅调 R，未在线估计 Q**（`src/ekf.c`）过程失配应调 Q → 加基于 NIS 的 Q 自适应。
-- [ ] `[high|M]` **核心缺量测门控/卡方野值拒绝**（`src/ekf.c`）→ 在核心层加 NIS 卡方门限。
+- [x] `[high|M]` **核心 NIS 卡方门控**（`src/ekf.c`）已加 `ekf_set_nis_gate`；OUTLIER 标准EKF 1.94°→0.40°。
 - [ ] `[high|L]` **加性 7D 四元数协方差过参数化（vs MEKF）**（`src/attitude.c`）秩/一致性
   不严谨 → 实现 6 维误差状态乘性 EKF(MEKF) 作对照基线。
 - [ ] `[high|M]` **数值雅可比穿过函数内归一化，扭曲线性化**（`src/attitude.c`）→ 归一化移出
