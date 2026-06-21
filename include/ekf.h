@@ -61,6 +61,17 @@ typedef bool (*EKF_StateJacobianFunc)(const Matrix *x, const Matrix *u,
 typedef bool (*EKF_MeasurementJacobianFunc)(const Matrix *x, Matrix *H);
 
 /**
+ * @brief 状态归一化函数类型（可选）
+ *
+ * 用于带约束的状态（如单位四元数姿态）：每次 predict / update 之后，
+ * 框架会调用它把状态投影回约束流形（例如把四元数重新归一化）。
+ * 若为 NULL 则不做任何处理（普通无约束 EKF）。
+ *
+ * @param x 状态向量（原地修改）
+ */
+typedef void (*EKF_StateNormalizeFunc)(Matrix *x);
+
+/**
  * @brief 鲁棒更新方法
  */
 typedef enum {
@@ -83,6 +94,7 @@ typedef struct {
     EKF_MeasurementFunc measurement_func;           /**< 观测函数 */
     EKF_StateJacobianFunc state_jacobian_func;      /**< 状态雅可比函数 */
     EKF_MeasurementJacobianFunc measurement_jacobian_func; /**< 观测雅可比函数 */
+    EKF_StateNormalizeFunc state_normalize_func;    /**< 状态归一化函数（可选，如四元数） */
 
     /* 噪声参数 */
     Matrix Q;   /**< 过程噪声协方差 */
@@ -188,6 +200,13 @@ void ekf_set_adaptive_params(EKF_Config *config, float window_size, float factor
  * @param method 更新方法
  */
 void ekf_set_update_method(EKF_Config *config, EKF_UpdateMethod method);
+
+/**
+ * @brief 设置状态归一化函数（可选，用于四元数等带约束状态）
+ * @param config 配置指针
+ * @param fn 归一化回调；传 NULL 取消
+ */
+void ekf_set_state_normalize(EKF_Config *config, EKF_StateNormalizeFunc fn);
 
 /**
  * @brief 初始化EKF状态

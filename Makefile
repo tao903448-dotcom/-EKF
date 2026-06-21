@@ -38,10 +38,11 @@ TEST_SRC  = $(filter-out $(TEST_DIR)/test_benchmark.c $(TEST_DIR)/test_benchmark
               $(wildcard $(TEST_DIR)/*.c))
 TEST_BIN  = $(patsubst $(TEST_DIR)/%.c, $(BUILD_DIR)/%, $(TEST_SRC))
 
-DEMO_BIN  = $(BUILD_DIR)/ekf_demo
-BENCH_BIN = $(BUILD_DIR)/test_benchmark_fixed
+DEMO_BIN     = $(BUILD_DIR)/ekf_demo
+ATT_DEMO_BIN = $(BUILD_DIR)/attitude_demo
+BENCH_BIN    = $(BUILD_DIR)/test_benchmark_fixed
 
-.PHONY: all lib tests demo bench test run-demo clean stats arm_lib arm_test arm_all arm_clean
+.PHONY: all lib tests demo bench test run-demo run-attitude asan clean stats arm_lib arm_test arm_all arm_clean
 
 # ===== 默认目标 =====
 all: lib tests demo
@@ -62,11 +63,17 @@ tests: $(TEST_BIN)
 $(BUILD_DIR)/%: $(TEST_DIR)/%.c $(LIB_FILE)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L$(LIB_DIR) -lekf $(LDFLAGS) -o $@
 
-# 可移植命令行 demo
-demo: $(DEMO_BIN)
+# 可移植命令行 demo（1D/2D 算法对比 + 四旋翼姿态估计）
+demo: $(DEMO_BIN) $(ATT_DEMO_BIN)
 $(DEMO_BIN): $(EX_DIR)/ekf_demo.c $(LIB_FILE)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L$(LIB_DIR) -lekf $(LDFLAGS) -o $@
 	@echo "命令行 demo 已创建: $(DEMO_BIN)"
+$(ATT_DEMO_BIN): $(EX_DIR)/attitude_demo.c $(LIB_FILE)
+	$(CC) $(CFLAGS) $(INCLUDES) $< -L$(LIB_DIR) -lekf $(LDFLAGS) -o $@
+	@echo "姿态估计 demo 已创建: $(ATT_DEMO_BIN)"
+
+run-attitude: $(ATT_DEMO_BIN)
+	@./$(ATT_DEMO_BIN)
 
 # 性能基准
 bench: $(BENCH_BIN)
@@ -83,6 +90,11 @@ test: tests
 
 run-demo: demo
 	@./$(DEMO_BIN)
+
+# 内存/未定义行为消毒构建并跑测试（CI 用）
+asan: CFLAGS += -g -fsanitize=address,undefined -fno-omit-frame-pointer
+asan: LDFLAGS += -fsanitize=address,undefined
+asan: clean test
 
 stats:
 	@find $(SRC_DIR) $(INC_DIR) $(TEST_DIR) $(EX_DIR) \( -name "*.c" -o -name "*.h" \) | xargs wc -l

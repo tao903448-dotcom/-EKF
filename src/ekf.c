@@ -61,6 +61,7 @@ bool ekf_config_init(EKF_Config *config, uint8_t state_dim, uint8_t measurement_
     config->measurement_func = NULL;
     config->state_jacobian_func = NULL;
     config->measurement_jacobian_func = NULL;
+    config->state_normalize_func = NULL;
 
     matrix_zeros(&config->Q, state_dim, state_dim);
     matrix_zeros(&config->R, measurement_dim, measurement_dim);
@@ -124,6 +125,12 @@ void ekf_set_adaptive_params(EKF_Config *config, float window_size, float factor
 void ekf_set_update_method(EKF_Config *config, EKF_UpdateMethod method) {
     if (config != NULL) {
         config->update_method = method;
+    }
+}
+
+void ekf_set_state_normalize(EKF_Config *config, EKF_StateNormalizeFunc fn) {
+    if (config != NULL) {
+        config->state_normalize_func = fn;
     }
 }
 
@@ -204,8 +211,11 @@ bool ekf_predict(EKF_State *state, const EKF_Config *config,
     }
     ekf_symmetrize(&state->P);
 
-    /* 4. 提交预测状态 */
+    /* 4. 提交预测状态，并按需投影回约束流形（如四元数归一化） */
     matrix_copy(&state->x, &state->x_pred);
+    if (config->state_normalize_func != NULL) {
+        config->state_normalize_func(&state->x);
+    }
 
     state->step_count++;
     return true;
@@ -234,13 +244,20 @@ bool ekf_update(EKF_State *state, const EKF_Config *config, const Matrix *z) {
         return false;
     }
 
+    bool ok;
     switch (config->update_method) {
-        case EKF_UPDATE_STANDARD:  return ekf_standard_update(state, config);
-        case EKF_UPDATE_JOSEPH:    return ekf_joseph_update(state, config);
-        case EKF_UPDATE_STUDENT_T: return ekf_student_t_update(state, config);
-        case EKF_UPDATE_ADAPTIVE:  return ekf_adaptive_update(state, config);
+        case EKF_UPDATE_STANDARD:  ok = ekf_standard_update(state, config); break;
+        case EKF_UPDATE_JOSEPH:    ok = ekf_joseph_update(state, config); break;
+        case EKF_UPDATE_STUDENT_T: ok = ekf_student_t_update(state, config); break;
+        case EKF_UPDATE_ADAPTIVE:  ok = ekf_adaptive_update(state, config); break;
         default:                   return false;
     }
+
+    /* 更新后按需把状态投影回约束流形（如四元数归一化） */
+    if (ok && config->state_normalize_func != NULL) {
+        config->state_normalize_func(&state->x);
+    }
+    return ok;
 }
 
 /* ========== 共用辅助：新息协方差 / 增益 / 状态更新 / 协方差更新 ========== */

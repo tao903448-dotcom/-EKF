@@ -18,8 +18,14 @@
 - **Student-t 鲁棒更新**：按马氏距离对测量野值降权
 - **自适应更新**：按归一化新息平方（NIS）动态调整测量噪声
 
+**旗舰应用——四旋翼姿态估计**：基于该框架实现了 7 状态（四元数 + 陀螺零偏）
+姿态 EKF，融合陀螺 / 加速度计 / 磁力计；在振动野值、机动失配场景下，自适应 /
+鲁棒更新把姿态 RMSE 相对标准 EKF **降低 75% / 39%** 并恢复滤波一致性
+（详见 [`docs/姿态估计实验报告.md`](docs/姿态估计实验报告.md)）。
+
 核心特性：零动态分配矩阵库、**alias-safe** 矩阵运算、可选 ARM NEON 加速
-（与标量同处一份 `matrix.c`，无重复符号）。
+（与标量同处一份 `matrix.c`，无重复符号）、四元数约束状态的归一化钩子、
+数值雅可比、GitHub Actions CI（构建 / 测试 / ASan / ARM 交叉编译）。
 
 ---
 
@@ -29,20 +35,29 @@
 software-cup-ekf/
 ├── include/
 │   ├── matrix.h            # 矩阵运算库接口
-│   └── ekf.h               # EKF 框架接口
+│   ├── ekf.h               # EKF 框架接口
+│   ├── quaternion.h        # 四元数姿态运算
+│   ├── attitude.h          # 四旋翼姿态 EKF 模型(7 状态)
+│   └── imu_sim.h           # 可复现 IMU 仿真器(header-only)
 ├── src/
 │   ├── matrix.c            # 矩阵库（标量 + NEON 内核，alias-safe）
-│   └── ekf.c               # EKF 框架
+│   ├── ekf.c               # EKF 框架
+│   ├── quaternion.c        # 四元数运算
+│   └── attitude.c          # 姿态 EKF 模型(数值雅可比)
 ├── tests/
-│   ├── test_matrix.c       # 矩阵单元测试 + 回归测试
-│   ├── test_ekf.c          # EKF 单元测试 + 回归测试
+│   ├── test_matrix.c       # 矩阵单元 + 回归测试
+│   ├── test_ekf.c          # EKF 单元 + 回归测试
+│   ├── test_attitude.c     # 姿态 EKF / 四元数测试
 │   └── test_benchmark_fixed.c  # 性能基准
 ├── examples/
-│   ├── ekf_demo.c          # 跨平台命令行演示（无 GUI 依赖）
+│   ├── ekf_demo.c          # 1D/2D 四方法对比(无 GUI)
+│   ├── attitude_demo.c     # 四旋翼姿态估计 蒙特卡洛评测
 │   └── imgui_demo/main.cpp # Windows + DX11 + ImGui 图形仪表盘
 ├── docs/
 │   ├── 技术文档.md
-│   └── 深度剖析与优化报告.md
+│   ├── 深度剖析与优化报告.md   # 缺陷剖析与重构记录
+│   └── 姿态估计实验报告.md     # 四旋翼姿态估计实验
+├── .github/workflows/ci.yml
 ├── Makefile
 └── README.md
 ```
@@ -53,8 +68,10 @@ software-cup-ekf/
 
 ```bash
 make            # 构建静态库 + 单元测试 + 命令行 demo
-make test       # 运行全部单元测试（matrix 11/11, ekf 41/41）
-make run-demo   # 运行诚实双场景对比
+make test       # 运行全部单元测试（matrix 11 + ekf 41 + attitude 11）
+make run-demo   # 1D/2D 四方法诚实双场景对比
+make run-attitude  # 四旋翼姿态估计 四方法×三场景 蒙特卡洛评测
+make asan       # AddressSanitizer/UBSan 下跑测试
 make bench      # 构建性能基准
 make clean
 ```
@@ -127,12 +144,32 @@ for (int k = 0; k < N; k++) {
 
 ---
 
+## 四旋翼姿态估计（旗舰结果，`make run-attitude` 可复现）
+
+7 状态四元数姿态 EKF，融合陀螺/加速度计/磁力计，20 种子蒙特卡洛、200Hz/15s：
+
+| 场景 | 标准EKF | Student-t | 自适应 |
+|---|---|---|---|
+| CLEAN（温和） | 0.42° | 0.43° | 0.41° |
+| OUTLIER（振动野值） | 1.75° (NIS 73✗) | 0.44° **(↓75%)** | 0.42° **(↓76%, NIS 4✓)** |
+| MANEUVER（机动失配） | 25.7° | 18.6° | 15.5° **(↓39%)** |
+
+鲁棒/自适应不仅降低姿态 RMSE，更把新息一致性指标 NIS 从 73 拉回≈4——
+即在野值/失配下**恢复滤波器可信度**。详见 `docs/姿态估计实验报告.md`。
+
+---
+
 ## 测试结果
 
 | 套件 | 结果 |
 |---|---|
 | `test_matrix` | 11 / 11 ✓（含别名安全、14×14 求逆越界回归） |
 | `test_ekf` | 41 / 41 ✓（含协方差不坍缩、Standard≡Joseph、鲁棒抗野值、预测不混叠、枚举顺序守卫） |
+| `test_attitude` | 11 / 11 ✓（四元数运算、姿态精度/一致性、鲁棒性回归） |
+
+CI：提供 GitHub Actions 配置 `ci/ci.yml`（x86 构建+测试、ASan/UBSan、ARM(NEON)
+交叉编译三作业）。启用：`mkdir -p .github/workflows && cp ci/ci.yml .github/workflows/`
+后推送（推送 workflow 文件需 token 具备 `workflow` 权限，或经网页端添加）。
 
 ---
 

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: 构建与单元测试 (x86-64, gcc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 编译器版本
+        run: gcc --version
+      - name: 构建库 + 测试 + demo
+        run: make all
+      - name: 运行全部单元测试
+        run: make test
+      - name: 运行姿态估计评测 (烟囱测试)
+        run: ./build/attitude_demo
+
+  sanitizers:
+    name: AddressSanitizer + UBSan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 消毒构建并跑测试
+        run: make asan
+
+  arm-cross:
+    name: ARM 交叉编译 (NEON)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装 ARM 工具链
+        run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabihf
+      - name: 交叉编译 ARM 库 + 测试 (NEON)
+        run: make arm_all
+      - name: 确认产物
+        run: ls -l lib_arm build_arm
