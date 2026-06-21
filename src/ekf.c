@@ -275,11 +275,22 @@ static bool ekf_innovation_cov(EKF_State *s, const Matrix *R) {
     return true;
 }
 
-/* K = P H' S^-1（要求 temp3 = H' 已就绪） */
+/* K = P H' S^-1（要求 temp3 = H' 已就绪）
+   首选 Cholesky 解：S 对称正定，解 S Kᵀ = (P H')ᵀ 比显式求逆更快更稳；
+   若 S 非正定（数值退化）则回退到通用 Gauss-Jordan 求逆，保证不退步。 */
 static bool ekf_gain(EKF_State *s) {
+    if (!matrix_mul(&s->temp1, &s->P, &s->temp3)) return false;   /* M = P H' (state×meas) */
+    /* Cholesky 路径：L=chol(S) 暂存于 S_inv 槽 */
+    if (matrix_cholesky(&s->S_inv, &s->S)) {
+        if (matrix_transpose(&s->temp2, &s->temp1) &&                 /* Mᵀ (meas×state) */
+            matrix_cholesky_solve(&s->temp4, &s->S_inv, &s->temp2) && /* Kᵀ = S⁻¹ Mᵀ     */
+            matrix_transpose(&s->K, &s->temp4)) {                     /* K (state×meas)  */
+            return true;
+        }
+    }
+    /* 回退：显式求逆 */
     if (!matrix_inverse(&s->S_inv, &s->S)) return false;
-    if (!matrix_mul(&s->temp1, &s->P, &s->temp3)) return false;  /* P H'       */
-    if (!matrix_mul(&s->K, &s->temp1, &s->S_inv)) return false;  /* P H' S^-1  */
+    if (!matrix_mul(&s->K, &s->temp1, &s->S_inv)) return false;   /* K = M S⁻¹ */
     return true;
 }
 
@@ -335,13 +346,16 @@ static void ekf_symmetrize(Matrix *P) {
 }
 
 /* 归一化新息平方 NIS = y' S^-1 y（任意观测维度）
-   复用预分配的 S_inv 与 temp1（此时 temp1=HP 已不再需要），不占栈。 */
+   首选 Cholesky 解 S w = y（仅一个右端列，最省），回退到显式求逆。
+   复用预分配 S_inv（暂存 L）与 temp1（此时 HP 已不需要），不占栈。 */
 static float ekf_nis(EKF_State *s) {
-    if (!matrix_inverse(&s->S_inv, &s->S)) {
-        return 0.0f;
+    bool ok = false;
+    if (matrix_cholesky(&s->S_inv, &s->S)) {                 /* L = chol(S) */
+        ok = matrix_cholesky_solve(&s->temp1, &s->S_inv, &s->y);  /* w = S^-1 y */
     }
-    if (!matrix_mul(&s->temp1, &s->S_inv, &s->y)) {   /* S^-1 y */
-        return 0.0f;
+    if (!ok) {  /* 回退：显式求逆 */
+        if (!matrix_inverse(&s->S_inv, &s->S)) return 0.0f;
+        if (!matrix_mul(&s->temp1, &s->S_inv, &s->y)) return 0.0f;
     }
     float nis = 0.0f;
     for (uint8_t i = 0; i < s->y.rows; i++) {

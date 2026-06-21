@@ -192,6 +192,20 @@ bool matrix_cholesky(Matrix *L, const Matrix *mat);
  */
 bool matrix_lu(Matrix *L, Matrix *U, Matrix *P, const Matrix *mat);
 
+/**
+ * @brief 用 Cholesky 因子求解 A X = B（A = L Lᵀ 对称正定）
+ *
+ * 先 `matrix_cholesky(L, A)` 得到下三角 L，再调用本函数对每个右端列做
+ * 前代/回代，得到 X = A⁻¹ B。相比"显式求逆再相乘"更快更稳，适合 EKF 中
+ * 对新息协方差 S 的求解（K = P Hᵀ S⁻¹、NIS = yᵀ S⁻¹ y）。
+ *
+ * @param X 结果矩阵（n×m，可与 B 别名）
+ * @param L matrix_cholesky 输出的下三角因子（n×n）
+ * @param B 右端矩阵（n×m）
+ * @return 成功返回true；维度不符或对角近零返回false
+ */
+bool matrix_cholesky_solve(Matrix *X, const Matrix *L, const Matrix *B);
+
 /* ========== 矩阵元素访问 ========== */
 
 /**

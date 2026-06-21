@@ -523,6 +523,40 @@ bool matrix_cholesky(Matrix *L, const Matrix *mat) {
     return true;
 }
 
+bool matrix_cholesky_solve(Matrix *X, const Matrix *L, const Matrix *B) {
+    if (X == NULL || L == NULL || B == NULL) {
+        return false;
+    }
+    if (L->rows != L->cols || L->rows != B->rows) {
+        return false;
+    }
+    uint8_t n = L->rows, m = B->cols;
+    X->rows = n; X->cols = m; X->stride = m;
+
+    /* 逐右端列：先解 L y = b（前代），再解 Lᵀ x = y（回代），原地存于 X 列 */
+    for (uint8_t c = 0; c < m; c++) {
+        /* 前代 L y = b */
+        for (uint8_t i = 0; i < n; i++) {
+            float s = B->data[MATRIX_INDEX(B, i, c)];
+            for (uint8_t k = 0; k < i; k++) {
+                s -= L->data[MATRIX_INDEX(L, i, k)] * X->data[(size_t)k * m + c];
+            }
+            float d = L->data[MATRIX_INDEX(L, i, i)];
+            if (fabsf(d) < MATRIX_PIVOT_EPS) return false;
+            X->data[(size_t)i * m + c] = s / d;
+        }
+        /* 回代 Lᵀ x = y */
+        for (int8_t i = (int8_t)n - 1; i >= 0; i--) {
+            float s = X->data[(size_t)i * m + c];
+            for (uint8_t k = (uint8_t)(i + 1); k < n; k++) {
+                s -= L->data[MATRIX_INDEX(L, k, i)] * X->data[(size_t)k * m + c];
+            }
+            X->data[(size_t)i * m + c] = s / L->data[MATRIX_INDEX(L, i, i)];
+        }
+    }
+    return true;
+}
+
 bool matrix_lu(Matrix *L, Matrix *U, Matrix *P, const Matrix *mat) {
     if (L == NULL || U == NULL || P == NULL || mat == NULL ||
         !matrix_is_square(mat)) {

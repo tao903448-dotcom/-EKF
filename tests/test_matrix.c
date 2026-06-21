@@ -357,6 +357,38 @@ bool test_matrix_strided_view(void) {
     return true;
 }
 
+/**
+ * @brief Cholesky 解 A X = B 正确性（对称正定）
+ */
+bool test_matrix_cholesky_solve(void) {
+    /* A = [[4,2],[2,3]] SPD */
+    float da[] = {4, 2, 2, 3};
+    Matrix A; matrix_from_array(&A, 2, 2, da);
+    Matrix L;
+    TEST_ASSERT(matrix_cholesky(&L, &A), "Cholesky 分解成功");
+
+    /* 单列右端 b=[1,2]'，解后验证 A x = b */
+    float db[] = {1, 2};
+    Matrix b; matrix_from_array(&b, 2, 1, db);
+    Matrix x, Ax;
+    TEST_ASSERT(matrix_cholesky_solve(&x, &L, &b), "Cholesky 解(单列)成功");
+    TEST_ASSERT(matrix_mul(&Ax, &A, &x), "回代验证乘法");
+    TEST_ASSERT(fabsf(matrix_get(&Ax, 0, 0) - 1.0f) < 1e-4f, "A x ≈ b [0]");
+    TEST_ASSERT(fabsf(matrix_get(&Ax, 1, 0) - 2.0f) < 1e-4f, "A x ≈ b [1]");
+
+    /* 多列右端 B=I，解得 A^-1，验证 A·A^-1 ≈ I */
+    Matrix I, Inv, Prod;
+    matrix_eye(&I, 2);
+    TEST_ASSERT(matrix_cholesky_solve(&Inv, &L, &I), "Cholesky 解(I)成功");
+    matrix_mul(&Prod, &A, &Inv);
+    TEST_ASSERT(fabsf(matrix_get(&Prod, 0, 0) - 1.0f) < 1e-4f, "A·A^-1 [0][0]=1");
+    TEST_ASSERT(fabsf(matrix_get(&Prod, 0, 1)) < 1e-4f, "A·A^-1 [0][1]=0");
+    TEST_ASSERT(fabsf(matrix_get(&Prod, 1, 1) - 1.0f) < 1e-4f, "A·A^-1 [1][1]=1");
+
+    TEST_PASS("Cholesky 线性解测试");
+    return true;
+}
+
 /* ========== 主测试函数 ========== */
 
 int main(void) {
@@ -379,6 +411,7 @@ int main(void) {
     if (test_matrix_inverse_large()) passed++; else failed++;
     if (test_matrix_finite_guard()) passed++; else failed++;
     if (test_matrix_strided_view()) passed++; else failed++;
+    if (test_matrix_cholesky_solve()) passed++; else failed++;
 
     printf("\n========== 测试结果 ==========\n");
     printf("通过: %d\n", passed);

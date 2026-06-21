@@ -2,6 +2,31 @@
 
 本项目遵循语义化版本思想；日期为 ISO 格式。
 
+## [3.1.0] - 2026-06-21 —— 全项目锐评驱动的健壮性/数值/工程迭代
+
+### 锐评
+- 8-agent 全项目深度锐评（83 条缺陷/改进），落账于 `TODO.md`（P0/P1/P2 分级
+  + 「服务器待执行」批处理清单），作为长线程迭代单一事实来源。
+
+### 修复 / 健壮性
+- **步长视图静默算错**：`matrix_add/sub/scale` 改行列索引（连续路径仍走 NEON），
+  修复 `MatrixView(stride≠cols)` 读错（锐评新发现的真实潜伏缺陷）。
+- **NaN/Inf 守卫**：新增 `matrix_is_finite`；`matrix_inverse/cholesky` 入口拦截、
+  `ekf_update` 拦截非有限观测（丢坏量测、保预测），防野值毒化状态。
+
+### 算法 / 数值
+- **Cholesky 线性解**：新增 `matrix_cholesky_solve`；`ekf_gain` 解 S Kᵀ=(PH')ᵀ、
+  `ekf_nis` 解 S w=y，取代对 S 的显式 Gauss-Jordan 求逆（更快更稳，结果等价），
+  非正定时回退通用求逆。
+- 加速度自适应门控（acceleration rejection）：MANEUVER 自适应 15.5°→12.5°。
+
+### 工程 / CI / 测试
+- CI 3→6 作业：新增 gcc `-Werror` 严格告警、Clang 构建、cppcheck 静态分析。
+- 测试 +5：NaN 守卫、步长视图、Cholesky 解、加速度门控（matrix 14 + ekf 41 +
+  attitude 13 = **68** 全过）；`-Werror` 零告警，ASan/UBSan 干净。
+- 新增 `LICENSE`、`tools/plot_attitude.py`、`docs/姿态估计实验报告.md`。
+
+
 ## [3.0.0] - 2026-06-21 —— 国奖级深度迭代：四旋翼姿态估计
 
 ### 新增

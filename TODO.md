@@ -29,7 +29,7 @@
 
 ## P1 · 算法深化
 
-- [ ] `[high|M]` **Cholesky-solve 取代 Gauss-Jordan 求逆**（`src/ekf.c`,`src/matrix.c`）
+- [x] `[high|M]` **Cholesky-solve 取代 Gauss-Jordan 求逆**（`src/ekf.c`,`src/matrix.c`）
   S=HPH'+R 对称正定，每步全 GJ 求逆浪费~2×且稳定性差；库已有 cholesky 却没用 →
   加 `matrix_cholesky_solve`/`matrix_solve`，ekf_gain/ekf_nis 改 Cholesky 解。
 - [ ] `[high|L]` **平方根/UD 协方差分解滤波**（`src/`）数值更稳，长跑不失正定。
@@ -86,7 +86,7 @@
 - [ ] `[medi|L]` **无 WCET/周期分析**；`[medi|L]` **无 MISRA-C 合规/静态零告警门**。
 - [ ] `[medi|M]` **MATRIX_MAX 16×16 硬上限不可编译期配置**（`include/matrix.h`）→ `#ifndef` 包裹 + 文档化栈占用。
 - [ ] `[medi|L]` **错误码单一 bool**（`src/matrix.c`）→ MatrixStatus 枚举或 errno 式。
-- [ ] `[medi|M]` **无 in-place 线性解**（`src/matrix.c`）→ matrix_solve（与 Cholesky-solve 合并做）。
+- [x] `[medi|M]` **(部分) Cholesky 线性解**：已加 `matrix_cholesky_solve`；通用 LU `matrix_solve` 待补。
 - [ ] `[medi|L]` **MatrixView 已实现却完全未用 + const 违反**（`src/matrix.c`）→ 用起来或删，修 const。
 - [ ] `[medi|S]` **MATRIX_ALIGNMENT 定义但从未应用**（NEON 可能非对齐加载）→ 对齐 data 或文档化。
 - [ ] `[low|S]` **无 AXPY 原语**；`[low|S]` **matrix_get 越界静默返 0** 伪装有效数据；
